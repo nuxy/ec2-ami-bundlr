@@ -328,7 +328,7 @@ echo -e "Creating the AMI image... This may take a while.\n"
 OS_RELEASE=`. /etc/os-release; echo $NAME-$VERSION_ID | awk '{print tolower($0)}' | tr ' ' -`
 PARTITION=`df | grep '/$' | awk -F '[[:space:]]' '{print $1}'`
 
-$BUILD_IMAGE=$BUILD_ROOT/image
+BUILD_IMAGE=$BUILD_ROOT/image
 
 dd if=$PARTITION of=$BUILD_ROOT/$OS_RELEASE.img bs=1M count=2024
 
@@ -339,13 +339,13 @@ mkdir -p $BUILD_IMAGE
 mount -o loop $BUILD_ROOT/$OS_RELEASE.img $BUILD_IMAGE
 
 # Copy the root partition (exclude AMI non-required files).
-EXCLUDES="--exclude=$(readlink -f $0) "
+BUILD_EXCLUDES="--exclude=$(readlink -f $0) "
 
 for file in dev media mnt proc sys; do
-    EXCLUDES+="--exclude=$file "
+    BUILD_EXCLUDES+="--exclude=$file "
 done
 
-tar cf - $EXCLUDES / | (cd $BUILD_IMAGE && tar xvf -)
+tar cf - $BUILD_EXCLUDES / | (cd $BUILD_IMAGE && tar xvf -)
 
 mkdir -p $BUILD_IMAGE/{dev,proc,sys}
 
@@ -361,10 +361,12 @@ chmod 0644 $BUILD_IMAGE/dev/urandom
 chmod 0644 $BUILD_IMAGE/dev/zero
 
 # Install 3rd-party AMI support scripts.
-curl -o $BUILD_IMAGE/etc/init.d/ec2-get-pubkey   https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2/get-pubkey.sh
-curl -o $BUILD_IMAGE/etc/init.d/ec2-set-password https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2/set-password.sh
-curl -o $BUILD_IMAGE/etc/init.d/ec2-set-hostname https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2/set-hostname.sh
-curl -o $BUILD_IMAGE/etc/init.d/ec2-post-install https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2/post-install.sh
+SCRIPT_PATH=https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2
+
+curl -o $BUILD_IMAGE/etc/init.d/ec2-get-pubkey   $SCRIPT_PATH/get-pubkey.sh
+curl -o $BUILD_IMAGE/etc/init.d/ec2-set-password $SCRIPT_PATH/set-password.sh
+curl -o $BUILD_IMAGE/etc/init.d/ec2-set-hostname $SCRIPT_PATH/set-hostname.sh
+curl -o $BUILD_IMAGE/etc/init.d/ec2-post-install $SCRIPT_PATH/post-install.sh
 
 /usr/sbin/chroot $BUILD_IMAGE sbin/chkconfig ec2-get-pubkey   on
 /usr/sbin/chroot $BUILD_IMAGE sbin/chkconfig ec2-set-password on
