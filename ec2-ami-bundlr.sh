@@ -104,13 +104,6 @@ while true; do
         continue
     fi
 
-    # Create directory and install certificate.
-    if [ ! -e $BUILD_KEYS ]; then
-        mkdir $BUILD_KEYS
-    fi
-
-    echo -e "$EC2_CERT" > $BUILD_KEYS/cert.pem
-
     clear
     break
 done
@@ -137,9 +130,6 @@ while true; do
         error "The private key entered is not valid."
         continue
     fi
-
-    # Install private key.
-    echo -e "$EC2_PRIVATE_KEY" > $BUILD_KEYS/pk.pem
 
     clear
     break
@@ -303,6 +293,16 @@ chmod 600 $BUILD_CONF
 
 # Import shell variables.
 source $BUILD_CONF
+
+# Write SSL certificates.
+notice "Writing SSL certificates to $BUILD_ROOT/keys"
+
+if [ ! -e $BUILD_KEYS ]; then
+    mkdir $BUILD_KEYS
+fi
+
+echo -e "$EC2_CERT"        > $BUILD_KEYS/cert.pem
+echo -e "$EC2_PRIVATE_KEY" > $BUILD_KEYS/pk.pem
 
 #
 # Install the AMI/API tools.
