@@ -276,7 +276,7 @@ yum install -y e2fsprogs java-1.8.0-openjdk net-tools perl ruby unzip
 #
 echo -e "Writing the configuration to $BUILD_CONF\n\n"
 
-cat << 'EOF' > $BUILD_CONF
+cat << EOF > $BUILD_CONF
 
 # Amazon EC2 account.
 export AWS_ACCOUNT_NUMBER=$AWS_ACCOUNT_NUMBER
