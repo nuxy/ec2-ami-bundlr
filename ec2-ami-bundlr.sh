@@ -37,7 +37,7 @@ Welcome to the AMI builder interactive setup. It is assumed that you have:
 
   1. Installed Linux by ISO and have a standard configured system.
   2. Running the operating system on a single partition.
-  3. Have disk space available equal, or greater than, the root partition.
+  3. Free disk space that is equal to, or greater than, filesystem in use.
   4. Are NOT already running in a VM (the Cloud) environment.
   5. Have an Amazon Web Services account with EC2/S3 access.
 
@@ -57,6 +57,11 @@ error() {
     echo -en "\n\033[0;31m$1\033[0m"
     sleep 1
     clear
+}
+
+notice() {
+    echo -e "\033[1m$1\033[0m\n"
+    sleep 1
 }
 
 while true; do
@@ -267,14 +272,14 @@ done
 #
 # Install build dependencies.
 #
-echo -e "Installing build dependencies..\n"
+notice "Installing build dependencies.."
 
 yum install -y e2fsprogs java-1.8.0-openjdk net-tools perl ruby unzip
 
 #
 # Set-up build environment.
 #
-echo -e "Writing the configuration to $BUILD_CONF\n\n"
+notice "Writing the configuration to $BUILD_CONF"
 
 cat << EOF > $BUILD_CONF
 
@@ -302,7 +307,7 @@ source $BUILD_CONF
 #
 # Install the AMI/API tools.
 #
-echo -e "Installing build tools"
+notice "Installing build tools"
 
 BUILD_TOOLS=$BUILD_ROOT/tools
 
@@ -322,7 +327,7 @@ rm -rf /tmp/ec2-*
 #
 # Create the AMI image.
 #
-echo -e "Creating the AMI image... This may take a while.\n"
+notice "Creating the AMI image... This may take a while."
 
 # Create disk mounted as loopback.
 OS_RELEASE=`. /etc/os-release; echo $NAME-$VERSION_ID | awk '{print tolower($0)}' | tr ' ' -`
@@ -393,6 +398,3 @@ EOF
 perl -p -i -e "s/PermitRootLogin no/PermitRootLogin without-password/g" /etc/ssh/sshd_config
 
 /usr/sbin/chroot $BUILD_IMAGE sbin/chkconfig network on
-
-# TODO: Add ec2-upload-bundle / ec2-bundle-image commands
-echo -e "Almost there. To be continued later today.."
