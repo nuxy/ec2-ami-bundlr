@@ -86,9 +86,9 @@ while true; do
     echo -e "Enter your X.509 EC2 certificate below: "
 
     # Get certificate from STDIN
-    while read -r line ; do
+    while read -r line; do
         if [ "$line" != "" ]; then
-            EC2_CERT+=$line
+            EC2_CERT+="$line\n"
         fi
 
         if [ "$line" == "-----END CERTIFICATE-----" ]; then
@@ -109,7 +109,7 @@ while true; do
         mkdir $BUILD_KEYS
     fi
 
-    echo "$EC2_CERT" > $BUILD_KEYS/cert.pem
+    echo -e "$EC2_CERT" > $BUILD_KEYS/cert.pem
 
     clear
     break
@@ -120,9 +120,9 @@ while true; do
     echo -e "Enter your X.509 EC2 private key below: "
 
     # Get certificate from STDIN
-    while read -r line ; do
+    while read -r line; do
         if [ "$line" != "" ]; then
-            EC2_PRIVATE_KEY+=$line
+            EC2_PRIVATE_KEY+="$line\n"
         fi
 
         if [ "$line" == "-----END PRIVATE KEY-----" ]; then
@@ -139,7 +139,7 @@ while true; do
     fi
 
     # Install private key.
-    echo "$EC2_PRIVATE_KEY" > $BUILD_KEYS/pk.pem
+    echo -e "$EC2_PRIVATE_KEY" > $BUILD_KEYS/pk.pem
 
     clear
     break
