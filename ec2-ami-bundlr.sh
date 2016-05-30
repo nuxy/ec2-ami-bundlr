@@ -27,7 +27,6 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 BUILD_ROOT=/mnt
-BUILD_KEYS=$BUILD_ROOT/keys
 BUILD_CONF=~/.aws
 
 # Begin program.
@@ -270,9 +269,9 @@ yum install -y e2fsprogs java-1.8.0-openjdk net-tools ntp perl ruby unzip
 ntpdate pool.ntp.org
 
 # Install the AWS AMI/API tools.
-BUILD_TOOLS=$BUILD_ROOT/tools
+BUILD_TOOLS_DIR=$BUILD_ROOT/tools
 
-mkdir $BUILD_TOOLS
+mkdir $BUILD_TOOLS_DIR
 
 curl -o /tmp/ec2-api-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
 curl -o /tmp/ec2-ami-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools.zip
@@ -280,8 +279,8 @@ curl -o /tmp/ec2-ami-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-ami-too
 unzip /tmp/ec2-api-tools.zip -d /tmp
 unzip /tmp/ec2-ami-tools.zip -d /tmp
 
-cp -r  /tmp/ec2-api-tools-*/* $BUILD_TOOLS
-cp -rf /tmp/ec2-ami-tools-*/* $BUILD_TOOLS
+cp -r  /tmp/ec2-api-tools-*/* $BUILD_TOOLS_DIR
+cp -rf /tmp/ec2-ami-tools-*/* $BUILD_TOOLS_DIR
 
 rm -rf /tmp/ec2-*
 
@@ -290,12 +289,12 @@ rm -rf /tmp/ec2-*
 #
 notice "Writing SSL certificates to $BUILD_ROOT/keys"
 
-if [ ! -e $BUILD_KEYS ]; then
-    mkdir $BUILD_KEYS
-fi
+BUILD_KEYS_DIR=$BUILD_ROOT/keys
 
-echo -e "$EC2_CERT"        > $BUILD_KEYS/cert.pem
-echo -e "$EC2_PRIVATE_KEY" > $BUILD_KEYS/pk.pem
+mkdir $BUILD_KEYS_DIR
+
+echo -e "$EC2_CERT"        > $BUILD_KEYS_DIR/cert.pem
+echo -e "$EC2_PRIVATE_KEY" > $BUILD_KEYS_DIR/pk.pem
 
 #
 # Set-up build environment.
@@ -311,9 +310,9 @@ export AWS_SECRET_KEY=$AWS_SECRET_KEY
 export AWS_AMI_BUCKET=$AWS_AMI_BUCKET
 
 # Amazon EC2 Tools.
-export EC2_HOME=$BUILD_ROOT/tools
-export EC2_PRIVATE_KEY=$BUILD_KEYS/pk.pem
-export EC2_CERT=$BUILD_KEYS/cert.pem
+export EC2_HOME=$BUILD_TOOLS_DIR
+export EC2_PRIVATE_KEY=$BUILD_KEYS_DIR/pk.pem
+export EC2_CERT=$BUILD_KEYS_DIR/cert.pem
 export EC2_URL=$EC2_URL
 
 export JAVA_HOME=/usr
@@ -330,19 +329,20 @@ source $BUILD_CONF
 #
 notice "Creating the AMI image... This may take a while."
 
-# Create disk mounted as loopback.
+BUILD_MOUNT_DIR=$BUILD_ROOT/image
+
+mkdir $BUILD_MOUNT_DIR
+
 OS_RELEASE=`. /etc/os-release; echo $NAME-$VERSION_ID | awk '{print tolower($0)}' | tr ' ' -`
+DISK_IMAGE=$BUILD_ROOT/$OS_RELEASE.img
 PARTITION=`df | grep '/$' | awk -F '[[:space:]]' '{print $1}'`
 
-BUILD_IMAGE=$BUILD_ROOT/image
+# Create disk mounted as loopback.
+dd if=$PARTITION of=$DISK_IMAGE bs=1M count=2024
 
-dd if=$PARTITION of=$BUILD_ROOT/$OS_RELEASE.img bs=1M count=2024
+mkfs.ext4 -F -j $DISK_IMAGE
 
-mkfs.ext4 -F -j $BUILD_ROOT/$OS_RELEASE.img
-
-mkdir -p $BUILD_IMAGE
-
-mount -o loop $BUILD_ROOT/$OS_RELEASE.img $BUILD_IMAGE
+mount -o loop $DISK_IMAGE $BUILD_MOUNT_DIR
 
 # Copy the root partition (exclude AMI non-required files).
 BUILD_EXCLUDES="--exclude=$(readlink -f $0) "
@@ -351,45 +351,45 @@ for file in dev media mnt proc sys; do
     BUILD_EXCLUDES+="--exclude=$file "
 done
 
-tar cf - $BUILD_EXCLUDES / | (cd $BUILD_IMAGE && tar xvf -)
+tar cf - $BUILD_EXCLUDES / | (cd $BUILD_MOUNT_DIR && tar xvf -)
 
-mkdir -p $BUILD_IMAGE/{dev,proc,sys}
+mkdir -p $BUILD_MOUNT_DIR/{dev,proc,sys}
 
 # Create required devices.
-mknod $BUILD_IMAGE/dev/console c 5 1
-mknod $BUILD_IMAGE/dev/null    c 1 3
-mknod $BUILD_IMAGE/dev/urandom c 1 9
-mknod $BUILD_IMAGE/dev/zero    c 1 5
+mknod $BUILD_MOUNT_DIR/dev/console c 5 1
+mknod $BUILD_MOUNT_DIR/dev/null    c 1 3
+mknod $BUILD_MOUNT_DIR/dev/urandom c 1 9
+mknod $BUILD_MOUNT_DIR/dev/zero    c 1 5
 
-chmod 0644 $BUILD_IMAGE/dev/console
-chmod 0644 $BUILD_IMAGE/dev/null
-chmod 0644 $BUILD_IMAGE/dev/urandom
-chmod 0644 $BUILD_IMAGE/dev/zero
+chmod 0644 $BUILD_MOUNT_DIR/dev/console
+chmod 0644 $BUILD_MOUNT_DIR/dev/null
+chmod 0644 $BUILD_MOUNT_DIR/dev/urandom
+chmod 0644 $BUILD_MOUNT_DIR/dev/zero
 
 # Install 3rd-party AMI support scripts.
 SCRIPT_PATH=https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2
 
-curl -o $BUILD_IMAGE/etc/init.d/ec2-get-pubkey   $SCRIPT_PATH/get-pubkey.sh
-curl -o $BUILD_IMAGE/etc/init.d/ec2-set-password $SCRIPT_PATH/set-password.sh
-curl -o $BUILD_IMAGE/etc/init.d/ec2-set-hostname $SCRIPT_PATH/set-hostname.sh
-curl -o $BUILD_IMAGE/etc/init.d/ec2-post-install $SCRIPT_PATH/post-install.sh
+curl -o $BUILD_MOUNT_DIR/etc/init.d/ec2-get-pubkey   $SCRIPT_PATH/get-pubkey.sh
+curl -o $BUILD_MOUNT_DIR/etc/init.d/ec2-set-password $SCRIPT_PATH/set-password.sh
+curl -o $BUILD_MOUNT_DIR/etc/init.d/ec2-set-hostname $SCRIPT_PATH/set-hostname.sh
+curl -o $BUILD_MOUNT_DIR/etc/init.d/ec2-post-install $SCRIPT_PATH/post-install.sh
 
-/usr/sbin/chroot $BUILD_IMAGE sbin/chkconfig ec2-get-pubkey   on
-/usr/sbin/chroot $BUILD_IMAGE sbin/chkconfig ec2-set-password on
-/usr/sbin/chroot $BUILD_IMAGE sbin/chkconfig ec2-set-hostname on
-/usr/sbin/chroot $BUILD_IMAGE sbin/chkconfig ec2-post-install on
+/usr/sbin/chroot $BUILD_MOUNT_DIR sbin/chkconfig ec2-get-pubkey   on
+/usr/sbin/chroot $BUILD_MOUNT_DIR sbin/chkconfig ec2-set-password on
+/usr/sbin/chroot $BUILD_MOUNT_DIR sbin/chkconfig ec2-set-hostname on
+/usr/sbin/chroot $BUILD_MOUNT_DIR sbin/chkconfig ec2-post-install on
 
 # Configure the image services.
-cat << EOF > $BUILD_IMAGE/etc/fstab
+cat << EOF > $BUILD_MOUNT_DIR/etc/fstab
 /dev/xvde1 / ext4 defaults,noatime,nodiratime 1 1
 EOF
 
-cat << EOF > $BUILD_IMAGE/etc/sysconfig/network
+cat << EOF > $BUILD_MOUNT_DIR/etc/sysconfig/network
 NETWORKING=yes
 HOSTNAME=localhost.localdomain
 EOF
 
-cat << EOF > $BUILD_IMAGE/etc/sysconfig/network-scripts/ifcfg-eth0
+cat << EOF > $BUILD_MOUNT_DIR/etc/sysconfig/network-scripts/ifcfg-eth0
 BOOTPROTO=dhcp
 DEVICE=eth0
 NM_CONTROLLED=yes
@@ -398,8 +398,13 @@ EOF
 
 perl -p -i -e "s/PermitRootLogin no/PermitRootLogin without-password/g" /etc/ssh/sshd_config
 
-/usr/sbin/chroot $BUILD_IMAGE sbin/chkconfig network on
+/usr/sbin/chroot $BUILD_MOUNT_DIR sbin/chkconfig network on
 
-# Bundle and upload the image to S3
-ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_AMI_BUCKET --user $AWS_ACCOUNT_NUMBER --image /mnt/centos-linux-7.img --destination /mnt/bundle
-ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_AMI_BUCKET --manifest /mnt/bundle/$AWS_AMI_BUCKET.manifest.xml --debug --retry
+# Bundle and upload the AMI to S3
+BUILD_OUTPUT_DIR=$BUILD_ROOT/bundle
+
+mkdir $BUILD_OUTPUT_DIR
+
+ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_AMI_BUCKET --user $AWS_ACCOUNT_NUMBER --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch `arch`
+
+ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_AMI_BUCKET --manifest $BUILD_OUTPUT_DIR/$AWS_AMI_BUCKET.manifest.xml
