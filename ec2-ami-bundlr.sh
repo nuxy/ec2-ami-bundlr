@@ -31,7 +31,6 @@ BUILD_ROOT=~/ec2-ami-bundlr
 
 # Begin program.
 clear && cat << EOF
-
 Welcome to the AMI builder interactive setup. It is assumed that you:
 
   1. Installed Linux by ISO and have a standard configured system.
@@ -117,7 +116,7 @@ while true; do
             EC2_PRIVATE_KEY+="$line\n"
         fi
 
-        if [ "$line" == "-----END RSA PRIVATE KEY-----" ]; then
+        if [[ $line =~ ^-----END[[:space:]](RSA[[:space:]])?PRIVATE[[:space:]]KEY-----$ ]]; then
             break
         fi
     done
@@ -329,7 +328,7 @@ export EC2_CERT=$BUILD_KEYS_DIR/cert.pem
 export EC2_REGION=$EC2_REGION
 
 export JAVA_HOME=/usr
-export PATH=$PATH:$EC2_HOME/bin:$BUILD_TOOLS/bin
+export PATH=$PATH:$EC2_HOME/bin:$BUILD_TOOLS_DIR/bin
 EOF
 
 chmod 600 $BUILD_CONF
