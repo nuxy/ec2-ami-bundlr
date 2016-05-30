@@ -26,8 +26,8 @@ if [ "$EUID" -ne 0 ]; then
   exit
 fi
 
-BUILD_ROOT=~/ec2-ami-bundlr
 BUILD_CONF=~/.aws
+BUILD_ROOT=~/ec2-ami-bundlr
 
 # Begin program.
 clear && cat << EOF
@@ -257,6 +257,19 @@ EOF
         break
     fi
 done
+
+#
+# Check for an existing sessions.
+#
+if [ -e "$BUILD_CONF" ]; then
+
+    # Backup session and remove stored data.
+    timestamp=`date +%s`
+    tar cfz ec2-ami-bundlr.$timestamp.tar.gz $BUILD_CONF $BUILD_ROOT
+    rm -rf $BUILD_CONF $BUILD_ROOT
+fi
+
+mkdir $BUILD_ROOT
 
 #
 # Install build dependencies.
