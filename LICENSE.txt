@@ -1,5 +1,5 @@
-Interactive script to create an HVM/PV machine image from a standard
-Linux installation. 
+Interactive script to create an Amazon EC2 HVM/PV machine image
+from a standard Linux installation.
 
 Copyright 2016, Marc S. Brooks (https://mbrooks.info)
 
