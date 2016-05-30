@@ -264,7 +264,10 @@ done
 #
 notice "Installing build dependencies.."
 
-yum install -y e2fsprogs java-1.8.0-openjdk net-tools perl ruby unzip
+yum install -y e2fsprogs java-1.8.0-openjdk net-tools ntp perl ruby unzip
+
+# Synchronize server time.
+ntpdate pool.ntp.org
 
 # Install the AWS AMI/API tools.
 BUILD_TOOLS=$BUILD_ROOT/tools
