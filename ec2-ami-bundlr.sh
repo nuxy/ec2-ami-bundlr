@@ -165,7 +165,7 @@ while true; do
     fi
 done
 
-# Prompt AWS_ACCESS_KEY_ID value.
+# Prompt AWS_ACCESS_KEY value.
 while true; do
     read -p "Enter your AWS access key ID: " line
 
@@ -173,14 +173,14 @@ while true; do
         error "The access key ID entered is not valid."
         continue
     else
-        AWS_ACCESS_KEY_ID=$line
+        AWS_ACCESS_KEY=$line
 
         clear
         break
     fi
 done
 
-# Prompt AWS_SECRET_ACCESS_KEY value.
+# Prompt AWS_SECRET_KEY value.
 while true; do
     read -p "Enter your AWS secret access key: " line
 
@@ -188,7 +188,7 @@ while true; do
         error "The secret access key entered is not valid."
         continue
     else
-        AWS_SECRET_ACCESS_KEY=$line
+        AWS_SECRET_KEY=$line
 
         clear
         break
@@ -303,8 +303,8 @@ cat << EOF > $BUILD_CONF
 
 # Amazon EC2 account.
 export AWS_ACCOUNT_NUMBER=$AWS_ACCOUNT_NUMBER
-export AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
-export AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+export AWS_ACCESS_KEY=$AWS_ACCESS_KEY
+export AWS_SECRET_KEY=$AWS_SECRET_KEY
 export AWS_AMI_BUCKET=$AWS_AMI_BUCKET
 
 # Amazon EC2 Tools.
@@ -396,3 +396,7 @@ EOF
 perl -p -i -e "s/PermitRootLogin no/PermitRootLogin without-password/g" /etc/ssh/sshd_config
 
 /usr/sbin/chroot $BUILD_IMAGE sbin/chkconfig network on
+
+# Bundle and upload the image to S3
+ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_AMI_BUCKET --user $AWS_ACCOUNT_NUMBER --image /mnt/centos-linux-7.img --destination /mnt/bundle
+ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_AMI_BUCKET --manifest /mnt/bundle/$AWS_AMI_BUCKET.manifest.xml --debug --retry
