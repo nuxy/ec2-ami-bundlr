@@ -21,14 +21,14 @@
 #   - This script must be executed as root
 #
 
-BUILD_ROOT=/mnt
-BUILD_KEYS=$BUILD_ROOT/keys
-BUILD_CONF=~/.aws
-
 if [ "$EUID" -ne 0 ]; then
   echo "This script MUST be executed as root. Exiting.."
   exit
 fi
+
+BUILD_ROOT=/mnt
+BUILD_KEYS=$BUILD_ROOT/keys
+BUILD_CONF=~/.aws
 
 # Begin program.
 cat << EOF
@@ -118,7 +118,7 @@ while true; do
             EC2_PRIVATE_KEY+="$line\n"
         fi
 
-        if [ "$line" == "-----END PRIVATE KEY-----" ]; then
+        if [ "$line" == "-----END RSA PRIVATE KEY-----" ]; then
             break
         fi
     done
@@ -184,7 +184,7 @@ done
 while true; do
     read -p "Enter your AWS secret access key: " line
 
-    if ! [[ $line =~ ^[a-zA-Z0-9]{40}$ ]]; then
+    if ! [[ $line =~ ^[a-zA-Z0-9\+\/]{39,40}$ ]]; then
         error "The secret access key entered is not valid."
         continue
     else
@@ -266,6 +266,34 @@ notice "Installing build dependencies.."
 
 yum install -y e2fsprogs java-1.8.0-openjdk net-tools perl ruby unzip
 
+# Install the AWS AMI/API tools.
+BUILD_TOOLS=$BUILD_ROOT/tools
+
+mkdir $BUILD_TOOLS
+
+curl -o /tmp/ec2-api-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
+curl -o /tmp/ec2-ami-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools.zip
+
+unzip /tmp/ec2-api-tools.zip -d /tmp
+unzip /tmp/ec2-ami-tools.zip -d /tmp
+
+cp -r  /tmp/ec2-api-tools-*/* $BUILD_TOOLS
+cp -rf /tmp/ec2-ami-tools-*/* $BUILD_TOOLS
+
+rm -rf /tmp/ec2-*
+
+#
+# Set-up signing certificates.
+#
+notice "Writing SSL certificates to $BUILD_ROOT/keys"
+
+if [ ! -e $BUILD_KEYS ]; then
+    mkdir $BUILD_KEYS
+fi
+
+echo -e "$EC2_CERT"        > $BUILD_KEYS/cert.pem
+echo -e "$EC2_PRIVATE_KEY" > $BUILD_KEYS/pk.pem
+
 #
 # Set-up build environment.
 #
@@ -286,43 +314,13 @@ export EC2_CERT=$BUILD_KEYS/cert.pem
 export EC2_URL=$EC2_URL
 
 export JAVA_HOME=/usr
-export PATH=$PATH:$EC2_HOME/bin
+export PATH=$PATH:$EC2_HOME/bin:$BUILD_TOOLS/bin
 EOF
 
 chmod 600 $BUILD_CONF
 
 # Import shell variables.
 source $BUILD_CONF
-
-# Write SSL certificates.
-notice "Writing SSL certificates to $BUILD_ROOT/keys"
-
-if [ ! -e $BUILD_KEYS ]; then
-    mkdir $BUILD_KEYS
-fi
-
-echo -e "$EC2_CERT"        > $BUILD_KEYS/cert.pem
-echo -e "$EC2_PRIVATE_KEY" > $BUILD_KEYS/pk.pem
-
-#
-# Install the AMI/API tools.
-#
-notice "Installing build tools"
-
-BUILD_TOOLS=$BUILD_ROOT/tools
-
-mkdir $BUILD_TOOLS
-
-curl -o /tmp/ec2-api-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
-curl -o /tmp/ec2-ami-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools.zip
-
-unzip /tmp/ec2-api-tools.zip -d /tmp
-unzip /tmp/ec2-ami-tools.zip -d /tmp
- 
-cp -r  /tmp/ec2-api-tools-*/* $BUILD_TOOLS
-cp -rf /tmp/ec2-ami-tools-*/* $BUILD_TOOLS
-
-rm -rf /tmp/ec2-*
 
 #
 # Create the AMI image.
@@ -340,7 +338,7 @@ dd if=$PARTITION of=$BUILD_ROOT/$OS_RELEASE.img bs=1M count=2024
 mkfs.ext4 -F -j $BUILD_ROOT/$OS_RELEASE.img
 
 mkdir -p $BUILD_IMAGE
- 
+
 mount -o loop $BUILD_ROOT/$OS_RELEASE.img $BUILD_IMAGE
 
 # Copy the root partition (exclude AMI non-required files).
