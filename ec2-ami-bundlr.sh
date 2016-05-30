@@ -264,7 +264,7 @@ if [ -e "$BUILD_CONF" ]; then
 
     # Backup session and remove stored data.
     timestamp=`date +%s`
-    tar cfz ec2-ami-bundlr.$timestamp.tar.gz $BUILD_CONF $BUILD_ROOT
+    tar cfz ec2-ami-bundlr.$timestamp.tar.gz -C $BUILD_CONF $BUILD_ROOT
     rm -rf $BUILD_CONF $BUILD_ROOT
 fi
 
@@ -412,11 +412,13 @@ perl -p -i -e "s/PermitRootLogin no/PermitRootLogin without-password/g" /etc/ssh
 
 /usr/sbin/chroot $BUILD_MOUNT_DIR sbin/chkconfig network on
 
+umount $BUILD_MOUNT_DIR
+
 # Bundle and upload the AMI to S3
 BUILD_OUTPUT_DIR=$BUILD_ROOT/bundle
 
 mkdir $BUILD_OUTPUT_DIR
 
-ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3_BUCKET --user $AWS_ACCOUNT_NUMBER --region=$EC2_REGION --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch `arch`
+ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3_BUCKET --user $AWS_ACCOUNT_NUMBER --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch `arch`
 
-ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUILD_OUTPUT_DIR/$AWS_S3_BUCKET.manifest.xml
+ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUILD_OUTPUT_DIR/$AWS_S3_BUCKET.manifest.xml --region=$EC2_REGION
