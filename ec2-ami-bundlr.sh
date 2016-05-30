@@ -32,13 +32,13 @@ BUILD_CONF=~/.aws
 # Begin program.
 cat << EOF
 
-Welcome to the AMI builder interactive setup. It is assumed that you have:
+Welcome to the AMI builder interactive setup. It is assumed that you:
 
   1. Installed Linux by ISO and have a standard configured system.
-  2. Running the operating system on a single partition.
-  3. Free disk space that is equal to, or greater than, filesystem in use.
-  4. Are NOT already running in a VM (the Cloud) environment.
-  5. Have an Amazon Web Services account with EC2/S3 access.
+  2. Are running the operating system on a single partition.
+  3. Have free disk space available equal to (or greater) filesystem in use.
+  4. Are NOT already running your system in a VM (the Cloud) environment.
+  5. Have an Amazon Web Services account with EC2/S3 root or IAM access.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
