@@ -194,7 +194,7 @@ while true; do
     fi
 done
 
-# Prompt EC2_URL value.
+# Prompt EC2_REGION value.
 while true; do
 
     cat << EOF
@@ -217,41 +217,41 @@ EOF
 
     case $line in
         1)
-            EC2_URL="ec2.us-east-1.amazonaws.com"
+            EC2_REGION="us-east-1"
             ;;
         2)
-            EC2_URL="ec2.us-west-1.amazonaws.com"
+            EC2_REGION="us-west-1"
             ;;
         3)
-            EC2_URL="ec2.us-west-2.amazonaws.com"
+            EC2_REGION="us-west-2"
             ;;
         4)
-            EC2_URL="ec2.eu-west-1.amazonaws.com"
+            EC2_REGION="eu-west-1"
             ;;
         5)
-            EC2_URL="ec2.eu-central-1.amazonaws.com"
+            EC2_REGION="eu-central-1"
             ;;
         6)
-            EC2_URL="ec2.ap-northeast-1.amazonaws.com"
+            EC2_REGION="ap-northeast-1"
             ;;
         7)
-            EC2_URL="ec2.ap-northeast-2.amazonaws.com"
+            EC2_REGION="ap-northeast-2"
             ;;
         8)
-            EC2_URL="ec2.ap-southeast-1.amazonaws.com"
+            EC2_REGION="ap-southeast-1"
             ;;
         9)
-            EC2_URL="ec2.ap-southeast-2.amazonaws.com"
+            EC2_REGION="ap-southeast-2"
             ;;
         10)
-            EC2_URL="ec2.sa-east-1.amazonaws.com"
+            EC2_REGION="sa-east-1"
             ;;
          *)
             error "Not a valid entry."
             continue
     esac
 
-    if [ "$EC2_URL" != "" ]; then
+    if [ "$EC2_REGION" != "" ]; then
         sleep 1
         clear
         break
@@ -313,7 +313,7 @@ export AWS_AMI_BUCKET=$AWS_AMI_BUCKET
 export EC2_HOME=$BUILD_TOOLS_DIR
 export EC2_PRIVATE_KEY=$BUILD_KEYS_DIR/pk.pem
 export EC2_CERT=$BUILD_KEYS_DIR/cert.pem
-export EC2_URL=$EC2_URL
+export EC2_REGION=$EC2_REGION
 
 export JAVA_HOME=/usr
 export PATH=$PATH:$EC2_HOME/bin:$BUILD_TOOLS/bin
@@ -405,6 +405,6 @@ BUILD_OUTPUT_DIR=$BUILD_ROOT/bundle
 
 mkdir $BUILD_OUTPUT_DIR
 
-ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_AMI_BUCKET --user $AWS_ACCOUNT_NUMBER --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch `arch`
+ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_AMI_BUCKET --user $AWS_ACCOUNT_NUMBER --region=$EC2_REGION --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch `arch`
 
 ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_AMI_BUCKET --manifest $BUILD_OUTPUT_DIR/$AWS_AMI_BUCKET.manifest.xml
