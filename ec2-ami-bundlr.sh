@@ -419,6 +419,12 @@ BUILD_OUTPUT_DIR=$BUILD_ROOT/bundle
 
 mkdir $BUILD_OUTPUT_DIR
 
-ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3_BUCKET --user $AWS_ACCOUNT_NUMBER --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch `arch`
+MACHINE_ARCH=`arch`
+
+ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3_BUCKET --user $AWS_ACCOUNT_NUMBER --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch $MACHINE_ARCH
 
 ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUILD_OUTPUT_DIR/$AWS_S3_BUCKET.manifest.xml --region=$EC2_REGION
+
+ec2-register $AWS_S3_BUCKET/$AWS_S3_BUCKET.manifest.xml --name $OS_RELEASE --architecture $MACHINE_ARCH
+
+# TODO: Verify registered instance works; make adjustments where necessary.
