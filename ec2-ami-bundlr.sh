@@ -26,11 +26,11 @@ if [ "$EUID" -ne 0 ]; then
   exit
 fi
 
-BUILD_ROOT=/mnt
+BUILD_ROOT=~/ec2-ami-bundlr
 BUILD_CONF=~/.aws
 
 # Begin program.
-cat << EOF
+clear && cat << EOF
 
 Welcome to the AMI builder interactive setup. It is assumed that you:
 
@@ -82,7 +82,7 @@ done
 
 # Prompt EC2_CERT value.
 while true; do
-    echo -e "Enter your X.509 EC2 certificate below: "
+    echo -e "Enter the contents of your X.509 EC2 certificate below: "
 
     # Get certificate from STDIN
     while read -r line; do
@@ -109,7 +109,7 @@ done
 
 # Get EC2_PRIVATE_KEY value.
 while true; do
-    echo -e "Enter your X.509 EC2 private key below: "
+    echo -e "Enter the contents your X.509 EC2 private key below: "
 
     # Get certificate from STDIN
     while read -r line; do
@@ -136,7 +136,7 @@ done
 
 # Prompt AWS_ACCOUNT_NUMBER value.
 while true; do
-    read -p "Enter your AWS account number below: " line
+    read -p "Enter your AWS account number: " line
 
     if ! [[ $line =~ ^[0-9\-]{8,15}$ ]]; then
         error "The account number entered is not valid."
@@ -149,27 +149,12 @@ while true; do
     fi
 done
 
-# Prompt AWS_AMI_BUCKET value.
-while true; do
-    read -p "Enter your AWS AMI bucket: " line
-
-    if ! [[ $line =~ ^[^\.\-]?[a-zA-Z0-9\.\-]{1,63}[^\.\-]?$ ]]; then
-        error "The bucket name entered is not valid."
-        continue
-    else
-        AWS_AMI_BUCKET=$line
-
-        clear
-        break
-    fi
-done
-
 # Prompt AWS_ACCESS_KEY value.
 while true; do
-    read -p "Enter your AWS access key ID: " line
+    read -p "Enter your AWS access key: " line
 
     if ! [[ $line =~ ^[A-Z0-9]{20}$ ]]; then
-        error "The access key ID entered is not valid."
+        error "The access key entered is not valid."
         continue
     else
         AWS_ACCESS_KEY=$line
@@ -181,13 +166,28 @@ done
 
 # Prompt AWS_SECRET_KEY value.
 while true; do
-    read -p "Enter your AWS secret access key: " line
+    read -p "Enter your AWS secret key: " line
 
     if ! [[ $line =~ ^[a-zA-Z0-9\+\/]{39,40}$ ]]; then
-        error "The secret access key entered is not valid."
+        error "The secret key entered is not valid."
         continue
     else
         AWS_SECRET_KEY=$line
+
+        clear
+        break
+    fi
+done
+
+# Prompt AWS_S3_BUCKET value.
+while true; do
+    read -p "Enter your AWS S3 bucket: " line
+
+    if ! [[ $line =~ ^[^\.\-]?[a-zA-Z0-9\.\-]{1,63}[^\.\-]?$ ]]; then
+        error "The bucket name entered is not valid."
+        continue
+    else
+        AWS_S3_BUCKET=$line
 
         clear
         break
@@ -307,7 +307,7 @@ cat << EOF > $BUILD_CONF
 export AWS_ACCOUNT_NUMBER=$AWS_ACCOUNT_NUMBER
 export AWS_ACCESS_KEY=$AWS_ACCESS_KEY
 export AWS_SECRET_KEY=$AWS_SECRET_KEY
-export AWS_AMI_BUCKET=$AWS_AMI_BUCKET
+export AWS_S3_BUCKET=$AWS_S3_BUCKET
 
 # Amazon EC2 Tools.
 export EC2_HOME=$BUILD_TOOLS_DIR
@@ -329,7 +329,7 @@ source $BUILD_CONF
 #
 notice "Creating the AMI image... This may take a while."
 
-BUILD_MOUNT_DIR=$BUILD_ROOT/image
+BUILD_MOUNT_DIR=/mnt/image
 
 mkdir $BUILD_MOUNT_DIR
 
@@ -345,7 +345,7 @@ mkfs.ext4 -F -j $DISK_IMAGE
 mount -o loop $DISK_IMAGE $BUILD_MOUNT_DIR
 
 # Copy the root partition (exclude AMI non-required files).
-BUILD_EXCLUDES="--exclude=$(readlink -f $0) "
+BUILD_EXCLUDES="--exclude=$BUILD_ROOT --exclude=$(readlink -f $0) "
 
 for file in dev media mnt proc sys; do
     BUILD_EXCLUDES+="--exclude=$file "
@@ -405,6 +405,6 @@ BUILD_OUTPUT_DIR=$BUILD_ROOT/bundle
 
 mkdir $BUILD_OUTPUT_DIR
 
-ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_AMI_BUCKET --user $AWS_ACCOUNT_NUMBER --region=$EC2_REGION --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch `arch`
+ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3_BUCKET --user $AWS_ACCOUNT_NUMBER --region=$EC2_REGION --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch `arch`
 
-ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_AMI_BUCKET --manifest $BUILD_OUTPUT_DIR/$AWS_AMI_BUCKET.manifest.xml
+ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUILD_OUTPUT_DIR/$AWS_S3_BUCKET.manifest.xml
