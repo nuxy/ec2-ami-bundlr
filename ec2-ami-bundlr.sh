@@ -193,7 +193,7 @@ while true; do
     fi
 done
 
-# Prompt EC2_REGION value.
+# Prompt EC2_REGION, set REGION/PV_GRUB values.
 while true; do
 
     cat << EOF
@@ -217,33 +217,43 @@ EOF
     case $line in
         1)
             EC2_REGION="us-east-1"
+            AKI_KERNEL="aki-919dcaf8"
             ;;
         2)
             EC2_REGION="us-west-1"
+            AKI_KERNEL="aki-880531cd"
             ;;
         3)
             EC2_REGION="us-west-2"
+            AKI_KERNEL="aki-fc8f11cc"
             ;;
         4)
             EC2_REGION="eu-west-1"
+            AKI_KERNEL="aki-919dcaf8"
             ;;
         5)
             EC2_REGION="eu-central-1"
+            AKI_KERNEL="aki-919dcaf8"
             ;;
         6)
             EC2_REGION="ap-northeast-1"
+            AKI_KERNEL="aki-176bf516"
             ;;
         7)
             EC2_REGION="ap-northeast-2"
+            AKI_KERNEL="aki-01a66b6f"
             ;;
         8)
             EC2_REGION="ap-southeast-1"
+            AKI_KERNEL="aki-503e7402"
             ;;
         9)
             EC2_REGION="ap-southeast-2"
+            AKI_KERNEL="aki-c362fff9"
             ;;
        10)
             EC2_REGION="sa-east-1"
+            AKI_KERNEL="aki-5553f448"
             ;;
         *)
             error "Not a valid entry."
@@ -451,10 +461,8 @@ BUILD_OUTPUT_DIR=$BUILD_ROOT/bundle
 
 mkdir $BUILD_OUTPUT_DIR
 
-MACHINE_ARCH=`arch`
-
-ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3_BUCKET --user $AWS_ACCOUNT_NUMBER --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch $MACHINE_ARCH
+ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3_BUCKET --user $AWS_ACCOUNT_NUMBER --image $DISK_IMAGE --destination $BUILD_OUTPUT_DIR --arch x86_64
 
 ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUILD_OUTPUT_DIR/$AWS_S3_BUCKET.manifest.xml --region=$EC2_REGION
 
-ec2-register $AWS_S3_BUCKET/$AWS_S3_BUCKET.manifest.xml --name $OS_RELEASE --architecture $MACHINE_ARCH --kernel aki-919dcaf8
+ec2-register $AWS_S3_BUCKET/$AWS_S3_BUCKET.manifest.xml --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL
