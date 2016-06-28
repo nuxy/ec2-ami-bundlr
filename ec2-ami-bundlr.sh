@@ -242,10 +242,10 @@ EOF
         9)
             EC2_REGION="ap-southeast-2"
             ;;
-        10)
+       10)
             EC2_REGION="sa-east-1"
             ;;
-         *)
+        *)
             error "Not a valid entry."
             continue
     esac
@@ -258,9 +258,9 @@ EOF
 done
 
 #
-# Check for an existing sessions.
+# Check for an existing session.
 #
-if [ -e "$BUILD_CONF" ]; then
+if [ -e "$BUILD_CONF" ] && [ -d "$BUILD_ROOT" ]; then
 
     # Backup session and remove stored data.
     timestamp=`date +%s`
@@ -337,35 +337,27 @@ chmod 600 $BUILD_CONF
 source $BUILD_CONF
 
 #
-# Create the AMI image.
+# Create OS dependencies.
 #
-notice "Creating the AMI image... This may take a while."
+notice "Creating the filesystem."
 
 BUILD_MOUNT_DIR=/mnt/image
 
 mkdir $BUILD_MOUNT_DIR
 
-OS_RELEASE=`. /etc/os-release; echo $NAME-$VERSION_ID | awk '{print tolower($0)}' | tr ' ' -`
+OS_RELEASE=`cat /etc/*-release | head -1 | awk '{print tolower($0)}' | tr ' ' -`
 DISK_IMAGE=$BUILD_ROOT/$OS_RELEASE.img
-PARTITION=`df | grep '/$' | awk -F '[[:space:]]' '{print $1}'`
 
 # Create disk mounted as loopback.
-dd if=$PARTITION of=$DISK_IMAGE bs=1M count=2024
+dd if=/dev/zero of=$DISK_IMAGE bs=1M count=2048
 
 mkfs.ext4 -F -j $DISK_IMAGE
 
 mount -o loop $DISK_IMAGE $BUILD_MOUNT_DIR
 
-# Copy the root partition (exclude AMI non-required files).
-BUILD_EXCLUDES="--exclude=$BUILD_ROOT --exclude=$(readlink -f $0) "
-
-for file in dev media mnt proc sys; do
-    BUILD_EXCLUDES+="--exclude=$file "
-done
-
-tar cf - $BUILD_EXCLUDES / | (cd $BUILD_MOUNT_DIR && tar xvf -)
-
-mkdir -p $BUILD_MOUNT_DIR/{dev,proc,sys}
+# Create the filesystem.
+mkdir -p $BUILD_MOUNT_DIR/{dev,etc,proc,sys}
+mkdir -p $BUILD_MOUNT_DIR/var/{cache,lock,log,lib/rpm}
 
 # Create required devices.
 mknod $BUILD_MOUNT_DIR/dev/console c 5 1
@@ -377,6 +369,35 @@ chmod 0644 $BUILD_MOUNT_DIR/dev/console
 chmod 0644 $BUILD_MOUNT_DIR/dev/null
 chmod 0644 $BUILD_MOUNT_DIR/dev/urandom
 chmod 0644 $BUILD_MOUNT_DIR/dev/zero
+
+mount -o bind /dev     $BUILD_MOUNT_DIR/dev
+mount -o bind /dev/pts $BUILD_MOUNT_DIR/dev/pts
+mount -o bind /dev/shm $BUILD_MOUNT_DIR/dev/shm
+mount -o bind /proc    $BUILD_MOUNT_DIR/proc
+mount -o bind /sys     $BUILD_MOUNT_DIR/sys
+
+# Install the operating system and kernel.
+yum --installroot=/mnt/image --releasever 6 -y install @core
+yum --installroot=/mnt/image --releasever 6 -y install kernel
+
+# Install the Grub bootloader
+cat << EOF > /mnt/image/boot/grub/grub.conf
+default 0
+timeout 0
+
+title Linux ($OS_RELEASE)
+root (hd0)
+kernel /boot/vmlinuz ro root=/dev/xvde1 console=hvc0 quiet
+initrd /boot/initramfs
+EOF
+
+ln -s /boot/grub/grub.conf /mnt/image/boot/grub/menu.lst
+
+kernel=`find /mnt/image/boot -type f -name "vmlinuz*.x86_64" | awk -F / '{print $NF}'`
+initramfs=`find /mnt/image/boot -type f -name "initramfs*.x86_64.img" | awk -F / '{print $NF}'`
+
+perl -p -i -e "s/vmlinuz/$kernel/g" /mnt/image/boot/grub/grub.conf
+perl -p -i -e "s/initramfs/$initramfs/g" /mnt/image/boot/grub/grub.conf
 
 # Install 3rd-party AMI support scripts.
 SCRIPT_PATH=https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2
@@ -391,9 +412,15 @@ curl -o $BUILD_MOUNT_DIR/etc/init.d/ec2-post-install $SCRIPT_PATH/post-install.s
 /usr/sbin/chroot $BUILD_MOUNT_DIR sbin/chkconfig ec2-set-hostname on
 /usr/sbin/chroot $BUILD_MOUNT_DIR sbin/chkconfig ec2-post-install on
 
+touch $BUILD_MOUNT_DIR/.autorelabel
+
 # Configure the image services.
 cat << EOF > $BUILD_MOUNT_DIR/etc/fstab
-/dev/xvde1 / ext4 defaults,noatime,nodiratime 1 1
+/dev/xvde1  /           ext4         defaults          1    1
+none        /dev/pts    devpts       gid=5,mode=620    0    0
+none        /dev/shm    tmpfs        defaults          0    0
+none        /proc       proc         defaults          0    0
+none        /sys        sysfs        defaults          0    0
 EOF
 
 cat << EOF > $BUILD_MOUNT_DIR/etc/sysconfig/network
@@ -414,6 +441,11 @@ perl -p -i -e "s/PermitRootLogin no/PermitRootLogin without-password/g" /etc/ssh
 
 umount $BUILD_MOUNT_DIR
 
+#
+# Create the AMI image.
+#
+notice "Creating the AMI image... This may take a while."
+
 # Bundle and upload the AMI to S3
 BUILD_OUTPUT_DIR=$BUILD_ROOT/bundle
 
@@ -425,6 +457,4 @@ ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3
 
 ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUILD_OUTPUT_DIR/$AWS_S3_BUCKET.manifest.xml --region=$EC2_REGION
 
-ec2-register $AWS_S3_BUCKET/$AWS_S3_BUCKET.manifest.xml --name $OS_RELEASE --architecture $MACHINE_ARCH
-
-# TODO: Verify registered instance works; make adjustments where necessary.
+ec2-register $AWS_S3_BUCKET/$AWS_S3_BUCKET.manifest.xml --name $OS_RELEASE --architecture $MACHINE_ARCH --kernel aki-919dcaf8
