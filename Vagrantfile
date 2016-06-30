@@ -2,7 +2,7 @@
 # vi: set ft=ruby :
 
 #
-#  Interactive script to create an Amazon EC2 HVM/PV machine image
+#  Interactive process to create an Amazon EC2 HVM/PV machine image
 #  from a standard Linux installation.
 #
 #  Copyright 2016, Marc S. Brooks (http://mbrooks.info)
