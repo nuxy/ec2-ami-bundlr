@@ -128,11 +128,11 @@ mount -o bind /proc    $IMAGE_MOUNT_DIR/proc
 mount -o bind /sys     $IMAGE_MOUNT_DIR/sys
 
 # Install the operating system and kernel.
-yum --installroot=/mnt/image --releasever 6 -y install @core
-yum --installroot=/mnt/image --releasever 6 -y install kernel
+yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install @core
+yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install kernel
 
 # Install the Grub bootloader
-cat << EOF > /mnt/image/boot/grub/grub.conf
+cat << EOF > $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 default 0
 timeout 0
 
@@ -142,13 +142,13 @@ kernel /boot/vmlinuz ro root=/dev/xvde1 console=hvc0 quiet
 initrd /boot/initramfs
 EOF
 
-ln -s /boot/grub/grub.conf /mnt/image/boot/grub/menu.lst
+ln -s /boot/grub/grub.conf $IMAGE_MOUNT_DIR/boot/grub/menu.lst
 
-kernel=`find /mnt/image/boot -type f -name "vmlinuz*.x86_64" | awk -F / '{print $NF}'`
-initramfs=`find /mnt/image/boot -type f -name "initramfs*.x86_64.img" | awk -F / '{print $NF}'`
+kernel=`find $IMAGE_MOUNT_DIR/boot -type f -name "vmlinuz*.x86_64" | awk -F / '{print $NF}'`
+initramfs=`find $IMAGE_MOUNT_DIR/boot -type f -name "initramfs*.x86_64.img" | awk -F / '{print $NF}'`
 
-perl -p -i -e "s/vmlinuz/$kernel/g" /mnt/image/boot/grub/grub.conf
-perl -p -i -e "s/initramfs/$initramfs/g" /mnt/image/boot/grub/grub.conf
+perl -p -i -e "s/vmlinuz/$kernel/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+perl -p -i -e "s/initramfs/$initramfs/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 
 # Install 3rd-party AMI support scripts.
 SCRIPT_PATH=https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2
@@ -190,8 +190,6 @@ perl -p -i -e "s/PermitRootLogin no/PermitRootLogin without-password/g" /etc/ssh
 
 /usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig network on
 
-umount $IMAGE_MOUNT_DIR
-
 #
 # Create the AMI image.
 #
@@ -207,3 +205,11 @@ ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3
 ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AWS_S3_BUCKET.manifest.xml --region=$EC2_REGION
 
 ec2-register $AWS_S3_BUCKET/$AWS_S3_BUCKET.manifest.xml --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL
+
+# Perform device cleanup
+umount -t /dev/loop0 $IMAGE_MOUNT_DIR/sys
+umount -t /dev/loop0 $IMAGE_MOUNT_DIR/proc
+umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev/shm
+umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev/pts
+umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev
+umount $IMAGE_MOUNT_DIR
