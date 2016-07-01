@@ -19,15 +19,31 @@
 #    Virtualbox 5.x
 #
 #  Usage:
-#    $ vagrant up
+#    $ vagrant up | halt | ssh | destroy
 #
 
-require "openssl"
+def command(data = nil)
+  Vagrant.configure(2) do |config|
+    config.vm.box = "centos/6"
+    config.vm.provider "virtualbox"
 
-# Start set-up.
-system "clear"
+    if data
+      config.vm.provision "shell", inline: data
+      config.vm.provision "shell", path: "ec2-ami-bundlr.sh"
+    end
+  end
+end
 
-print <<-EOF
+def error(message)
+  puts "\n\033[0;31m#{message}\033[0m"
+  sleep 1
+  system "clear"
+end
+
+def setup()
+  system "clear"
+
+  print <<-EOF
 Welcome to the AMI builder interactive setup. It is assumed that you:
 
   1. Installed Linux by ISO and have a standard configured system.
@@ -46,151 +62,142 @@ THE SOFTWARE.
 
 Copyright 2016, Marc S. Brooks (https://mbrooks.info)
 
-EOF
+  EOF
 
-def error(message)
-  puts "\n\033[0;31m#{message}\033[0m"
-  sleep 1
-  system "clear"
-end
+  while true do
+    print "Ready to get started? [Y/n] "
 
-def notice(message)
-  puts "\033[1m#{message}\033[0m\n"
-  sleep 1
-end
+    case STDIN.gets.chomp
+    when "y", "Y"
+      sleep 1
+      system "clear"
+      break
+    when "n", "N"
+      puts "Aborted.."
+      abort
+    end
+  end
 
-while true do
-  print "Ready to get started? [Y/n] "
+  # Prompt EC2_CERT value.
+  while true do
+    puts "Enter the contents of your X.509 EC2 certificate below: "
 
-  case STDIN.gets.chomp
-  when "y", "Y"
-    sleep 1
+    $/ = "-----END CERTIFICATE-----\n"
+
+    data = STDIN.gets
+
+    # Validate the certificate.
+    begin
+      OpenSSL::X509::Certificate.new data
+    rescue
+      error "The certificate entered is not valid."
+      next
+    end
+
+    ec2_cert = data
+
+    $/ = "\n"
+
     system "clear"
     break
-  when "n", "N"
-    puts "Aborted.."
-    abort
   end
-end
 
-# Prompt EC2_CERT value.
-while true do
-  notice "Enter the contents of your X.509 EC2 certificate below: "
+  # Get EC2_PRIVATE_KEY value.
+  while true do
+    puts "Enter the contents your X.509 EC2 private key below: "
 
-  $/ = "-----END CERTIFICATE-----"
+    $/ = "-----END RSA PRIVATE KEY-----\n"
 
-  data = STDIN.gets
+    data = STDIN.gets
 
-  # Validate the certificate.
-  begin
-    OpenSSL::X509::Certificate.new data
-  rescue
-    error "The certificate entered is not valid."
+    # Validate the certificate.
+    begin
+      OpenSSL::PKey::RSA.new data
+    rescue
+      error "The private key entered is not valid."
     next
+    end
+
+    ec2_private_key = data
+
+    $/ = "\n"
+
+    system "clear"
+    break
   end
 
-  EC2_CERT = data
+  # Prompt AWS_ACCOUNT_NUMBER value.
+  while true do
+    print "Enter your AWS account number: "
 
-  $/ = "\n"
+    line = STDIN.gets.chomp.delete("-")
 
-  system "clear"
-  break
-end
+    if line !~ /^[0-9]{8,15}$/
+      error "The account number entered is not valid."
+      next
+    end
 
-# Get EC2_PRIVATE_KEY value.
-while true do
-  notice "Enter the contents your X.509 EC2 private key below: "
+    aws_account_number = line
 
-  $/ = "-----END RSA PRIVATE KEY-----"
-
-  data = STDIN.gets
-
-  # Validate the certificate.
-  begin
-    OpenSSL::PKey::RSA.new data
-  rescue
-    error "The private key entered is not valid."
-  next
+    system "clear"
+    break
   end
 
-  EC2_PRIVATE_KEY = data
+  # Prompt AWS_ACCESS_KEY value.
+  while true do
+    print "Enter your AWS access key: "
 
-  $/ = "\n"
+    line = STDIN.gets.chomp
 
-  system "clear"
-  break
-end
+    if line !~ /^[A-Z0-9]{20}$/
+      error "The access key entered is not valid."
+      next
+    end
 
-# Prompt AWS_ACCOUNT_NUMBER value.
-while true do
-  print "Enter your AWS account number: "
+    aws_access_key = line
 
-  line = STDIN.gets.chomp
-
-  if line !~ /^[0-9]{8,15}$/
-    error "The account number entered is not valid."
-    next
+    system "clear"
+    break
   end
 
-  AWS_ACCOUNT_NUMBER = line
+  # Prompt AWS_SECRET_KEY value.
+  while true do
+    print "Enter your AWS secret key: "
 
-  system "clear"
-  break
-end
+    line = STDIN.gets.chomp
 
-# Prompt AWS_ACCESS_KEY value.
-while true do
-  print "Enter your AWS access key: "
+    if line !~ /^[a-zA-Z0-9\+\/]{39,40}$/
+      error "The secret key entered is not valid."
+      next
+    end
 
-  line = STDIN.gets.chomp
+    aws_secret_key = line
 
-  if line !~ /^[A-Z0-9]{20}$/
-    error "The access key entered is not valid."
-    next
+    system "clear"
+    break
   end
 
-  AWS_ACCESS_KEY = line
+  # Prompt AWS_S3_BUCKET value.
+  while true do
+    print "Enter your AWS S3 bucket: "
 
-  system "clear"
-  break
-end
+    line = STDIN.gets.chomp
 
-# Prompt AWS_SECRET_KEY value.
-while true do
-  print "Enter your AWS secret key: "
+    if line !~ /^[^\.\-]?[a-zA-Z0-9\.\-]{1,63}[^\.\-]?$/
+      error "The bucket name entered is not valid."
+      next
+    end
 
-  line = STDIN.gets.chomp
+    aws_s3_bucket = line
 
-  if line !~ /^[a-zA-Z0-9\+\/]{39,40}$/
-    error "The secret key entered is not valid."
-    next
+    system "clear"
+    break
   end
 
-  AWS_SECRET_KEY = line
+  # Prompt ec2_region, set REGION/PV_GRUB values.
+  while true do
 
-  system "clear"
-  break
-end
-
-# Prompt AWS_S3_BUCKET value.
-while true do
-  print "Enter your AWS S3 bucket: "
-
-  if line !~ /^[^\.\-]?[a-zA-Z0-9\.\-]{1,63}[^\.\-]?$/
-    error "The bucket name entered is not valid."
-    next
-  end
-
-  AWS_S3_BUCKET = line
-
-  system "clear"
-  break
-end
-
-# Prompt EC2_REGION, set REGION/PV_GRUB values.
-while true do
-
-  notice <<-EOF
+    puts <<-EOF
 Choose your EC2 region from the list below:
 
    1. US East (N. Virginia)      us-east-1
@@ -204,83 +211,79 @@ Choose your EC2 region from the list below:
    9. Asia Pacific (Sydney)      ap-southeast-2
   10. South America (São Paulo)  sa-east-1
 
-  EOF
+    EOF
 
-  print "Region [1-10] "
+    print "Region [1-10] "
 
-  line = STDIN.gets.chomp
-  case line
+    case STDIN.gets.chomp
+    when "1"
+      ec2_region="us-east-1"
+      aki_kernel="aki-919dcaf8"
+    when "2"
+      ec2_region="us-west-1"
+      aki_kernel="aki-880531cd"
+    when "3"
+      ec2_region="us-west-2"
+      aki_kernel="aki-fc8f11cc"
+    when "4"
+      ec2_region="eu-west-1"
+      aki_kernel="aki-919dcaf8"
+    when "5"
+      ec2_region="eu-central-1"
+      aki_kernel="aki-919dcaf8"
+    when "6"
+      ec2_region="ap-northeast-1"
+      aki_kernel="aki-176bf516"
+    when "7"
+      ec2_region="ap-northeast-2"
+      aki_kernel="aki-01a66b6f"
+    when "8"
+      ec2_region="ap-southeast-1"
+      aki_kernel="aki-503e7402"
+    when "9"
+      ec2_region="ap-southeast-2"
+      aki_kernel="aki-c362fff9"
+    when "10"
+      ec2_region="sa-east-1"
+      aki_kernel="aki-5553f448"
+    else
+      error "Not a valid entry."
+      next
+    end
 
-  when 1
-    EC2_REGION="us-east-1"
-    AKI_KERNEL="aki-919dcaf8"
-  when 2
-    EC2_REGION="us-west-1"
-    AKI_KERNEL="aki-880531cd"
-  when 3
-    EC2_REGION="us-west-2"
-    AKI_KERNEL="aki-fc8f11cc"
-  when 4
-    EC2_REGION="eu-west-1"
-    AKI_KERNEL="aki-919dcaf8"
-  when 5
-    EC2_REGION="eu-central-1"
-    AKI_KERNEL="aki-919dcaf8"
-  when 6
-    EC2_REGION="ap-northeast-1"
-    AKI_KERNEL="aki-176bf516"
-  when 7
-    EC2_REGION="ap-northeast-2"
-    AKI_KERNEL="aki-01a66b6f"
-  when 8
-    EC2_REGION="ap-southeast-1"
-    AKI_KERNEL="aki-503e7402"
-  when 9
-    EC2_REGION="ap-southeast-2"
-    AKI_KERNEL="aki-c362fff9"
-  when 10
-    EC2_REGION="sa-east-1"
-    AKI_KERNEL="aki-5553f448"
-  else
-    error "Not a valid entry."
-    next
-  end
-
-  if EC2_REGION != ""
-    sleep 1
     system "clear"
     break
   end
+
+  command <<-EOF
+      cat << CONFIG > ~/.aws
+  export AMI_BUNDLR_ROOT=~/ec2-ami-bundlr
+
+  # Amazon EC2 account.
+  export AWS_ACCOUNT_NUMBER=#{aws_account_number}
+  export AWS_ACCESS_KEY=#{aws_access_key}
+  export AWS_SECRET_KEY=#{aws_secret_key}
+  export AWS_S3_BUCKET=#{aws_s3_bucket}
+
+  export AWS_KEYS_DIR=$AMI_BUNDLR_ROOT/keys
+  export AWS_TOOLS_DIR=$AMI_BUNDLR_ROOT/tools
+
+  export EC2_CERT=$AWS_KEYS_DIR/cert.pem
+  export EC2_PRIVATE_KEY=$AWS_KEYS_DIR/pk.pem
+  export ec2_region=#{ec2_region}
+
+  # Amazon EC2 Tools.
+  export EC2_HOME=$AWS_TOOLS_DIR
+  export JAVA_HOME=/usr
+  export PATH=$PATH:$EC2_HOME/bin:$BUILD_TOOLS_DIR/bin
+CONFIG
+  EOF
 end
 
-# Provision the VM
-Vagrant.configure(2) do |config|
-  config.vm.box = "centos/6"
-  config.vm.provider "virtualbox"
-
-  notice "Writing the configuration to: ~/.aws"
-
-  config.vm.provision "shell", inline: <<-EOF
-    cat << STDOUT > ~/.aws
-
-export AMI_BUNDLR_ROOT="~/ec2-ami-bundlr"
-
-# Amazon EC2 account.
-export AWS_ACCOUNT_NUMBER=#{AWS_ACCOUNT_NUMBER}
-export AWS_ACCESS_KEY=#{AWS_ACCESS_KEY}
-export AWS_SECRET_KEY=#{AWS_SECRET_KEY}
-export AWS_S3_BUCKET=#{AWS_S3_BUCKET}
-
-export EC2_CERT=#{BUILD_KEYS_DIR}/cert.pem
-export EC2_PRIVATE_KEY=#{BUILD_KEYS_DIR}/pk.pem
-export EC2_REGION=#{EC2_REGION}
-
-# Amazon EC2 Tools.
-export EC2_HOME=#{BUILD_TOOLS_DIR}
-export JAVA_HOME=/usr
-export PATH=$PATH:$EC2_HOME/bin:$BUILD_TOOLS_DIR/bin
-STDOUT
-
-    sh ~/sync/ec2-ami-bundlr.sh
-  EOF
+# Support CLI arguments.
+case ARGV[0]
+when "halt", "ssh", "destroy"
+  command
+else
+  setup
 end

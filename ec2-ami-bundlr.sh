@@ -21,21 +21,36 @@
 #   - This script must be executed as root
 #
 
-AMI_BUNDLR_VARS="~/.aws"
+notice () {
+    echo -e "\033[1m$1\033[0m\n"
+    sleep 1
+}
+
+#
+# Start the installation.
+#
+AMI_BUNDLR_VARS=~/.aws
 
 source $AMI_BUNDLR_VARS
 
-#
-# Check for an existing session.
-#
-if [ -e "$AMI_BUNDLR_VARS" ] && [ -d "$AMI_BUNDLR_ROOT" ]; then
+notice "Starting installation process"
 
-    # Backup session and remove stored data.
+# Check for an existing session.
+if [ -e "$AMI_BUNDLR_VARS" ] && [ -d "$AMI_BUNDLR_ROOT" ]; then
     timestamp=`date +%s`
-    tar cfz ec2-ami-bundlr.$timestamp.tar.gz -C $AMI_BUNDLR_VARS $AMI_BUNDLR_ROOT
+
+    # Backup the project directory.
+    outfile="ec2-ami-bundlr.$timestamp.tar.gz"
+
+    notice "Build exists. Backing up files to $outfile"
+
+    tar cfz $outfile -C $AMI_BUNDLR_VARS $AMI_BUNDLR_ROOT
+
+    # Remove directory.
     rm -rf $AMI_BUNDLR_VARS $AMI_BUNDLR_ROOT
 fi
 
+# Create new project directory.
 mkdir $AMI_BUNDLR_ROOT
 
 #
@@ -49,8 +64,6 @@ yum install -y e2fsprogs java-1.8.0-openjdk net-tools ntp perl ruby unzip
 ntpdate pool.ntp.org
 
 # Install the AWS AMI/API tools.
-AWS_TOOLS_DIR=$AMI_BUNDLR_ROOT/tools
-
 mkdir $AWS_TOOLS_DIR
 
 curl -o /tmp/ec2-api-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
@@ -68,8 +81,6 @@ rm -rf /tmp/ec2-*
 # Set-up signing certificates.
 #
 notice "Writing SSL certificates to $AMI_BUNDLR_ROOT/keys"
-
-AWS_KEYS_DIR=$AMI_BUNDLR_ROOT/keys
 
 mkdir $AWS_KEYS_DIR
 
