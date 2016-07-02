@@ -127,9 +127,8 @@ mount -o bind /dev/shm $IMAGE_MOUNT_DIR/dev/shm
 mount -o bind /proc    $IMAGE_MOUNT_DIR/proc
 mount -o bind /sys     $IMAGE_MOUNT_DIR/sys
 
-# Install the operating system and kernel.
+# Install the operating system
 yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install @core
-yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install kernel
 
 # Install the Grub bootloader
 cat << EOF > $IMAGE_MOUNT_DIR/boot/grub/grub.conf
@@ -189,6 +188,9 @@ EOF
 perl -p -i -e "s/PermitRootLogin no/PermitRootLogin without-password/g" /etc/ssh/sshd_config
 
 /usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig network on
+
+# Install the kernel.
+yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install kernel
 
 #
 # Create the AMI image.
