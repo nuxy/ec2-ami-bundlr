@@ -256,7 +256,7 @@ Choose your EC2 region from the list below:
   end
 
   command <<-EOF
-      cat << CONFIG > ~/.aws
+      cat << 'CONFIG' > ~/.aws
   export AMI_BUNDLR_ROOT=~/ec2-ami-bundlr
 
   # Amazon EC2 account.
@@ -270,20 +270,20 @@ Choose your EC2 region from the list below:
 
   export EC2_CERT=$AWS_KEYS_DIR/cert.pem
   export EC2_PRIVATE_KEY=$AWS_KEYS_DIR/pk.pem
-  export ec2_region=#{ec2_region}
+  export EC2_REGION=#{ec2_region}
 
   # Amazon EC2 Tools.
   export EC2_HOME=$AWS_TOOLS_DIR
   export JAVA_HOME=/usr
-  export PATH=$PATH:$EC2_HOME/bin:$BUILD_TOOLS_DIR/bin
+  export PATH=$PATH:$EC2_HOME/bin:$AWS_TOOLS_DIR/bin
 CONFIG
   EOF
 end
 
 # Support CLI arguments.
 case ARGV[0]
-when "halt", "ssh", "destroy"
-  command
-else
+when "up"
   setup
+else
+  command
 end
