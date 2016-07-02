@@ -47,7 +47,7 @@ if [ -e "$AMI_BUNDLR_VARS" ] && [ -d "$AMI_BUNDLR_ROOT" ]; then
     tar cfz $outfile -C $AMI_BUNDLR_VARS $AMI_BUNDLR_ROOT
 
     # Remove directory.
-    rm -rf $AMI_BUNDLR_VARS $AMI_BUNDLR_ROOT
+    rm -rf $AMI_BUNDLR_ROOT
 fi
 
 # Create new project directory.
@@ -84,8 +84,11 @@ notice "Writing SSL certificates to $AMI_BUNDLR_ROOT/keys"
 
 mkdir $AWS_KEYS_DIR
 
-echo -e "$EC2_CERT"        > $AWS_KEYS_DIR/cert.pem
-echo -e "$EC2_PRIVATE_KEY" > $AWS_KEYS_DIR/pk.pem
+# Write X509 keys from STDIN
+if [ $# -ne 0 ]; then
+    echo -e "$1" > $AWS_KEYS_DIR/cert.pem
+    echo -e "$2" > $AWS_KEYS_DIR/pk.pem
+fi
 
 #
 # Create OS dependencies.
@@ -94,7 +97,9 @@ notice "Creating the filesystem."
 
 IMAGE_MOUNT_DIR=/mnt/image
 
-mkdir $IMAGE_MOUNT_DIR
+if [ ! -d $IMAGE_MOUNT_DIR ]; then
+    mkdir $IMAGE_MOUNT_DIR
+fi
 
 OS_RELEASE=`cat /etc/*-release | head -1 | awk '{print tolower($0)}' | tr ' ' -`
 DISK_IMAGE=$AMI_BUNDLR_ROOT/$OS_RELEASE.img

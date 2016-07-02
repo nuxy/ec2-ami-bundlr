@@ -22,14 +22,14 @@
 #    $ vagrant up | halt | ssh | destroy
 #
 
-def command(data = nil)
+def command(cert = nil, priv_key = nil, data = nil)
   Vagrant.configure(2) do |config|
     config.vm.box = "centos/6"
     config.vm.provider "virtualbox"
 
-    if data
+    if cert && priv_key && data
       config.vm.provision "shell", inline: data
-      config.vm.provision "shell", path: "ec2-ami-bundlr.sh"
+      config.vm.provision "shell", path: "ec2-ami-bundlr.sh", args: [cert, priv_key]
     end
   end
 end
@@ -255,7 +255,7 @@ Choose your EC2 region from the list below:
     break
   end
 
-  command <<-EOF
+  command ec2_cert, ec2_private_key, <<-EOF
       cat << 'CONFIG' > ~/.aws
   export AMI_BUNDLR_ROOT=~/ec2-ami-bundlr
 
