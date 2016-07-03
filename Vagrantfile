@@ -272,6 +272,8 @@ Choose your EC2 region from the list below:
   export EC2_PRIVATE_KEY=$AWS_KEYS_DIR/pk.pem
   export EC2_REGION=#{ec2_region}
 
+  export AKI_KERNEL=#{aki_kernel}
+
   # Amazon EC2 Tools.
   export EC2_HOME=$AWS_TOOLS_DIR
   export JAVA_HOME=/usr
