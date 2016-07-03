@@ -202,6 +202,8 @@ yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install kernel
 #
 notice "Creating the AMI image... This may take a while."
 
+sleep 60
+
 # Bundle and upload the AMI to S3
 BUNDLE_OUTPUT_DIR=$AMI_BUNDLR_ROOT/bundle
 
@@ -209,9 +211,15 @@ mkdir $BUNDLE_OUTPUT_DIR
 
 ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3_BUCKET --user $AWS_ACCOUNT_NUMBER --image $DISK_IMAGE --destination $BUNDLE_OUTPUT_DIR --arch x86_64
 
-ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AWS_S3_BUCKET.manifest.xml --region=$EC2_REGION
+AMI_MANIFEST=$AWS_S3_BUCKET.manifest.xml
 
-ec2-register $AWS_S3_BUCKET/$AWS_S3_BUCKET.manifest.xml --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL
+if [ -f "$AMI_MANIFEST" ]; then
+    ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $AMI_MANIFEST --region=$EC2_REGION
+
+    ec2-register $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL
+else
+    error "The image bundling process failed. Please try again."
+fi
 
 # Perform device cleanup
 umount -t /dev/loop0 $IMAGE_MOUNT_DIR/sys
