@@ -27,6 +27,7 @@ def command(cert = nil, priv_key = nil, data = nil)
     config.vm.box = "centos/6"
     config.vm.provider "virtualbox"
 
+    # Start the AMI bundle process.
     if cert && priv_key && data
       config.vm.provision "shell", inline: data
       config.vm.provision "shell", path: "ec2-ami-bundlr.sh", args: [cert, priv_key]

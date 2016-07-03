@@ -213,12 +213,12 @@ ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3
 
 AMI_MANIFEST=$AWS_S3_BUCKET.manifest.xml
 
-if [ -f "$AMI_MANIFEST" ]; then
-    ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $AMI_MANIFEST --region=$EC2_REGION
+if [ -f "$BUNDLE_OUTPUT_DIR/$AMI_MANIFEST" ]; then
+    ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION
 
-    ec2-register $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL
+    ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL
 else
-    error "The image bundling process failed. Please try again."
+    notice "The image bundling process failed. Please try again."
 fi
 
 # Perform device cleanup
