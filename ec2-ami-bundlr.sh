@@ -148,6 +148,8 @@ curl -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-post-install $SCRIPT_PATH/post-install.s
 /usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig ec2-set-hostname on
 /usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig ec2-post-install on
 
+/usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig kdump off
+
 touch $IMAGE_MOUNT_DIR/.autorelabel
 
 # Configure the image services.
