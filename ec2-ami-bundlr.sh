@@ -135,25 +135,6 @@ mount -o bind /sys     $IMAGE_MOUNT_DIR/sys
 # Install the operating system
 yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install @core
 
-# Install the Grub bootloader
-cat << EOF > $IMAGE_MOUNT_DIR/boot/grub/grub.conf
-default 0
-timeout 0
-
-title Linux ($OS_RELEASE)
-root (hd0)
-kernel /boot/vmlinuz ro root=/dev/xvde1 console=hvc0 quiet
-initrd /boot/initramfs
-EOF
-
-ln -s /boot/grub/grub.conf $IMAGE_MOUNT_DIR/boot/grub/menu.lst
-
-kernel=`find $IMAGE_MOUNT_DIR/boot -type f -name "vmlinuz*.x86_64" | awk -F / '{print $NF}'`
-initramfs=`find $IMAGE_MOUNT_DIR/boot -type f -name "initramfs*.x86_64.img" | awk -F / '{print $NF}'`
-
-perl -p -i -e "s/vmlinuz/$kernel/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
-perl -p -i -e "s/initramfs/$initramfs/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
-
 # Install 3rd-party AMI support scripts.
 SCRIPT_PATH=https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2
 
@@ -197,6 +178,25 @@ perl -p -i -e "s/PermitRootLogin no/PermitRootLogin without-password/g" /etc/ssh
 # Install the kernel.
 yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install kernel
 
+# Install the Grub bootloader
+cat << EOF > $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+default 0
+timeout 0
+
+title Linux ($OS_RELEASE)
+root (hd0)
+kernel /boot/vmlinuz ro root=/dev/xvde1 console=hvc0 quiet
+initrd /boot/initramfs
+EOF
+
+ln -s /boot/grub/grub.conf $IMAGE_MOUNT_DIR/boot/grub/menu.lst
+
+kernel=`find $IMAGE_MOUNT_DIR/boot -type f -name "vmlinuz*.x86_64" | awk -F / '{print $NF}'`
+initramfs=`find $IMAGE_MOUNT_DIR/boot -type f -name "initramfs*.x86_64.img" | awk -F / '{print $NF}'`
+
+perl -p -i -e "s/vmlinuz/$kernel/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+perl -p -i -e "s/initramfs/$initramfs/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+
 #
 # Create the AMI image.
 #
@@ -220,6 +220,8 @@ if [ -f "$BUNDLE_OUTPUT_DIR/$AMI_MANIFEST" ]; then
 else
     notice "The image bundling process failed. Please try again."
 fi
+
+exit
 
 # Perform device cleanup
 umount -t /dev/loop0 $IMAGE_MOUNT_DIR/sys
