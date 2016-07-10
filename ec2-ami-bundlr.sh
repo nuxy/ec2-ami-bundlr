@@ -66,8 +66,8 @@ ntpdate pool.ntp.org
 # Install the AWS AMI/API tools.
 mkdir $AWS_TOOLS_DIR
 
-curl -o /tmp/ec2-api-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
-curl -o /tmp/ec2-ami-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools.zip
+curl --silent -o /tmp/ec2-api-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
+curl --silent -o /tmp/ec2-ami-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools.zip
 
 unzip /tmp/ec2-api-tools.zip -d /tmp
 unzip /tmp/ec2-ami-tools.zip -d /tmp
@@ -132,22 +132,23 @@ mount -o bind /dev/shm $IMAGE_MOUNT_DIR/dev/shm
 mount -o bind /proc    $IMAGE_MOUNT_DIR/proc
 mount -o bind /sys     $IMAGE_MOUNT_DIR/sys
 
-# Install the operating system
-yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install @core
+# Install the operating system.
+yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install @core expect
 
 # Install 3rd-party AMI support scripts.
 SCRIPT_PATH=https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2
 
-curl -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-get-pubkey   $SCRIPT_PATH/get-pubkey.sh
-curl -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-set-password $SCRIPT_PATH/set-password.sh
-curl -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-set-hostname $SCRIPT_PATH/set-hostname.sh
-curl -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-post-install $SCRIPT_PATH/post-install.sh
+curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-get-pubkey   $SCRIPT_PATH/get-pubkey.sh
+curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-set-password $SCRIPT_PATH/set-password.sh
+curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-set-hostname $SCRIPT_PATH/set-hostname.sh
+curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-post-install $SCRIPT_PATH/post-install.sh
+
+chmod 755 $IMAGE_MOUNT_DIR/etc/init.d/ec2-*
 
 /usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig ec2-get-pubkey   on
 /usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig ec2-set-password on
 /usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig ec2-set-hostname on
 /usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig ec2-post-install on
-
 /usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig kdump off
 
 touch $IMAGE_MOUNT_DIR/.autorelabel
@@ -173,14 +174,19 @@ NM_CONTROLLED=yes
 ONBOOT=yes
 EOF
 
-perl -p -i -e "s/PermitRootLogin no/PermitRootLogin without-password/g" /etc/ssh/sshd_config
-
 /usr/sbin/chroot $IMAGE_MOUNT_DIR sbin/chkconfig network on
 
-# Install the kernel.
+cat << EOF >> $IMAGE_MOUNT_DIR/etc/ssh/sshd_config
+RSAAuthentication yes
+PubkeyAuthentication yes
+AuthorizedKeysFile  .ssh/authorized_keys
+EOF
+
+/usr/sbin/chroot $IMAGE_MOUNT_DIR mkdir /root/.ssh
+
+# Install the kernel and dependencies.
 yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install kernel
 
-# Install the Grub bootloader
 cat << EOF > $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 default 0
 timeout 0
@@ -193,18 +199,18 @@ EOF
 
 ln -s /boot/grub/grub.conf $IMAGE_MOUNT_DIR/boot/grub/menu.lst
 
-kernel=`find $IMAGE_MOUNT_DIR/boot -type f -name "vmlinuz*.x86_64" | awk -F / '{print $NF}'`
-initramfs=`find $IMAGE_MOUNT_DIR/boot -type f -name "initramfs*.x86_64.img" | awk -F / '{print $NF}'`
+GRUB_KERNEL=`find $IMAGE_MOUNT_DIR/boot -type f -name "vmlinuz*.x86_64" | awk -F / '{print $NF}'`
+GRUB_INITRD=`find $IMAGE_MOUNT_DIR/boot -type f -name "initramfs*.x86_64.img" | awk -F / '{print $NF}'`
 
-perl -p -i -e "s/vmlinuz/$kernel/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
-perl -p -i -e "s/initramfs/$initramfs/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+perl -p -i -e "s/vmlinuz/$GRUB_KERNEL/g"   $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+perl -p -i -e "s/initramfs/$GRUB_INITRD/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 
 #
 # Create the AMI image.
 #
 notice "Creating the AMI image... This may take a while."
 
-sleep 60
+sleep 30
 
 # Bundle and upload the AMI to S3
 BUNDLE_OUTPUT_DIR=$AMI_BUNDLR_ROOT/bundle
@@ -222,8 +228,6 @@ if [ -f "$BUNDLE_OUTPUT_DIR/$AMI_MANIFEST" ]; then
 else
     notice "The image bundling process failed. Please try again."
 fi
-
-exit
 
 # Perform device cleanup
 umount -t /dev/loop0 $IMAGE_MOUNT_DIR/sys
