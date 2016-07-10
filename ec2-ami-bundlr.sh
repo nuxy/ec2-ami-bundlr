@@ -210,7 +210,7 @@ perl -p -i -e "s/initramfs/$GRUB_INITRD/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 #
 notice "Creating the AMI image... This may take a while."
 
-sleep 30
+sleep 60
 
 # Bundle and upload the AMI to S3
 BUNDLE_OUTPUT_DIR=$AMI_BUNDLR_ROOT/bundle
