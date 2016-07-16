@@ -6,7 +6,6 @@ Create an EC2 instance-store based AMI from a standard Linux installation in a c
 
 ## Supported Systems
 
-- RHEL
 - CentOS 
 - Fedora
 
