@@ -179,7 +179,9 @@ EOF
 cat << EOF >> $IMAGE_MOUNT_DIR/etc/ssh/sshd_config
 RSAAuthentication yes
 PubkeyAuthentication yes
-AuthorizedKeysFile  .ssh/authorized_keys
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication no
+PermitRootLogin without-password
 EOF
 
 /usr/sbin/chroot $IMAGE_MOUNT_DIR mkdir /root/.ssh
