@@ -105,7 +105,7 @@ OS_RELEASE=`cat /etc/*-release | head -1 | awk '{print tolower($0)}' | tr ' ' -`
 DISK_IMAGE=$AMI_BUNDLR_ROOT/$OS_RELEASE.img
 
 # Create disk mounted as loopback.
-dd if=/dev/zero of=$DISK_IMAGE bs=1M count=2048
+dd if=/dev/zero of=$DISK_IMAGE bs=1M count=$3
 
 mkfs.ext4 -F -j $DISK_IMAGE
 
@@ -226,7 +226,7 @@ AMI_MANIFEST=$AWS_S3_BUCKET.manifest.xml
 if [ -f "$BUNDLE_OUTPUT_DIR/$AMI_MANIFEST" ]; then
     ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION
 
-    ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL
+    ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL --virtualization-type $4
 else
     notice "The image bundling process failed. Please try again."
 fi

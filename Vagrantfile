@@ -22,7 +22,7 @@
 #    $ vagrant up | halt | ssh | destroy
 #
 
-def command(cert = nil, priv_key = nil, data = nil)
+def command(cert = nil, priv_key = nil, size = 2048, type = "paravirtual", data = nil)
   Vagrant.configure(2) do |config|
     config.vm.box = "centos/6"
     config.vm.provider "virtualbox"
@@ -30,7 +30,7 @@ def command(cert = nil, priv_key = nil, data = nil)
     # Start the AMI bundle process.
     if cert && priv_key && data
       config.vm.provision "shell", inline: data
-      config.vm.provision "shell", path: "ec2-ami-bundlr.sh", args: [cert, priv_key]
+      config.vm.provision "shell", path: "ec2-ami-bundlr.sh", args: [cert, priv_key, size, type]
     end
   end
 end
@@ -256,7 +256,42 @@ Choose your EC2 region from the list below:
     break
   end
 
-  command ec2_cert, ec2_private_key, <<-EOF
+  # Prompt for image disk size.
+  while true do
+    print "Enter the image size in megabytes (min 1024 / max 10240): "
+
+    line = STDIN.gets.chomp.delete("-")
+
+    if line !~ /^[0-9]{3,5}$/ && line >= 1024 && line <= 10240
+      error "The image size entered is not valid."
+      next
+    end
+
+    image_size = line
+
+    system "clear"
+    break
+  end
+
+  # Prompt for image virtualization type (hmv/paravirtual).
+  while true do
+    print "Choose the virtualization type [hmv/pv]? "
+
+    case STDIN.gets.chomp
+    when "hvm"
+      image_type = "hvm"
+    when "pv"
+      image_type = "paravirtual"
+    else
+      error "Not a valid entry."
+      next
+    end
+
+    system "clear"
+    break
+  end
+
+  command ec2_cert, ec2_private_key, image_size, image_type, <<-EOF
       cat << 'CONFIG' > ~/.aws
   export AMI_BUNDLR_ROOT=~/ec2-ami-bundlr
 
