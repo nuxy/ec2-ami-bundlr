@@ -10,7 +10,6 @@
 #  http://www.opensource.org/licenses/mit-license.php
 #
 #  Supported systems:
-#    RHEL
 #    CentOS
 #    Fedora
 #
@@ -22,9 +21,9 @@
 #    $ vagrant up | halt | ssh | destroy
 #
 
-def command(cert = nil, priv_key = nil, size = 2048, type = "paravirtual", data = nil)
+def command(box = nil, cert = nil, priv_key = nil, size = 2048, type = nil, data = nil)
   Vagrant.configure(2) do |config|
-    config.vm.box = "centos/6"
+    config.vm.box = box
     config.vm.provider "virtualbox"
 
     # Start the AMI bundle process.
@@ -291,7 +290,24 @@ Choose your EC2 region from the list below:
     break
   end
 
-  command ec2_cert, ec2_private_key, image_size, image_type, <<-EOF
+  # Prompt for Bento project Vagrant box.
+  while true do
+    puts "Enter a Bento project Vagrant box (https://atlas.hashicorp.com/bento)"
+
+    line = STDIN.gets.chomp
+
+    if line !~ /^bento\/(?:centos|fedora)/
+      error "The Bento name entered is not valid."
+      next
+    end
+
+    bento_box = line
+
+    system "clear"
+    break
+  end
+
+  command bento_box, ec2_cert, ec2_private_key, image_size, image_type, <<-EOF
       cat << 'CONFIG' > ~/.aws
   export AMI_BUNDLR_ROOT=~/ec2-ami-bundlr
 
