@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 #  ec2-ami-bundlr.sh
 #  Interactive process to create an Amazon EC2 HVM/PV machine image
