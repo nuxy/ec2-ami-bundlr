@@ -6,8 +6,9 @@ Create an EC2 instance-store based AMI from a standard Linux installation in a c
 
 ## Supported Systems
 
-- CentOS 
-- Fedora
+This package currently supports Linux releases that are not dependent on the _Grub2_ bootloader and _Systemd_ init system.
+
+- [CentOS](https://atlas.hashicorp.com/bento/boxes/centos-6.7)
 
 ## Dependencies
 

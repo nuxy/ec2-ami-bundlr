@@ -9,9 +9,7 @@
 #  http://www.opensource.org/licenses/mit-license.php
 #
 #  Supported systems:
-#    RHEL
 #    CentOS
-#    Fedora
 #
 #  Dependencies:
 #    OpenSSL
@@ -44,7 +42,7 @@ if [ -e "$AMI_BUNDLR_VARS" ] && [ -d "$AMI_BUNDLR_ROOT" ]; then
 
     notice "Build exists. Backing up files to $outfile"
 
-    tar cfz $outfile -C $AMI_BUNDLR_VARS $AMI_BUNDLR_ROOT
+    tar cfz $outfile --add-file $AMI_BUNDLR_VARS --directory $AMI_BUNDLR_ROOT --absolute-names
 
     # Remove directory.
     rm -rf $AMI_BUNDLR_ROOT

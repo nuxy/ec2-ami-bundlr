@@ -296,7 +296,7 @@ Choose your EC2 region from the list below:
 
     line = STDIN.gets.chomp
 
-    if line !~ /^bento\/(?:centos|fedora)/
+    if line !~ /^bento\/(?:centos)/
       error "The Bento name entered is not valid."
       next
     end
