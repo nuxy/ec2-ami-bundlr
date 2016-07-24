@@ -221,18 +221,34 @@ ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3
 
 AMI_MANIFEST=$AWS_S3_BUCKET.manifest.xml
 
-if [ -f "$BUNDLE_OUTPUT_DIR/$AMI_MANIFEST" ]; then
-    ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION
-
-    ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL --virtualization-type $4
-else
+if [ ! -f "$BUNDLE_OUTPUT_DIR/$AMI_MANIFEST" ]; then
     notice "The image bundling process failed. Please try again."
+
+    exit 1
+else
+
+    # Perform device cleanup
+    umount -t /dev/loop0 $IMAGE_MOUNT_DIR/sys
+    umount -t /dev/loop0 $IMAGE_MOUNT_DIR/proc
+    umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev/shm
+    umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev/pts
+    umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev
+    umount $IMAGE_MOUNT_DIR
 fi
 
-# Perform device cleanup
-umount -t /dev/loop0 $IMAGE_MOUNT_DIR/sys
-umount -t /dev/loop0 $IMAGE_MOUNT_DIR/proc
-umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev/shm
-umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev/pts
-umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev
-umount $IMAGE_MOUNT_DIR
+ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION
+
+INSTANCE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL --virtualization-type $4`
+
+#
+# Create EBS-based image from new instance-store.
+#
+notice "Creating the EBS-based image... This may take a while."
+
+ec2-run-instance $INSTANCE_ID --availability-zone $EC2_REGION
+
+VOLUME_ID=`ec2-create-volume --size $DISK_SIZE --availability-zone $EC2_REGION | awk '{print $2}'`
+
+ec2-attach-volume $VOLUME_ID --instance $INSTANCE_ID --device /dev/sdb
+
+
