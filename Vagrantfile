@@ -11,7 +11,6 @@
 #
 #  Supported systems:
 #    CentOS
-#    Fedora
 #
 #  Dependencies:
 #    Vagrant 1.8.x
@@ -46,11 +45,9 @@ def setup()
   print <<-EOF
 Welcome to the AMI builder interactive setup. It is assumed that you:
 
-  1. Installed Linux by ISO and have a standard configured system.
-  2. Are running the operating system on a single partition.
-  3. Have free disk space available equal to (or greater) filesystem in use.
-  4. Are NOT already running your system in a VM (the Cloud) environment.
-  5. Have an Amazon Web Services account with EC2/S3 root or IAM access.
+  1. Are running an operating system that supports VirtualBox.
+  2. Are NOT already running this script in a VM (the Cloud) environment.
+  3. Have an Amazon Web Services account with EC2/S3 root or IAM access.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
