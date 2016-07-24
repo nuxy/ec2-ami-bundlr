@@ -103,7 +103,7 @@ OS_RELEASE=`cat /etc/*-release | head -1 | awk '{print tolower($0)}' | tr ' ' -`
 DISK_IMAGE=$AMI_BUNDLR_ROOT/$OS_RELEASE.img
 
 # Create disk mounted as loopback.
-dd if=/dev/zero of=$DISK_IMAGE bs=1M count=$3
+dd if=/dev/zero of=$DISK_IMAGE bs=1G count=$3
 
 mkfs.ext4 -F -j $DISK_IMAGE
 

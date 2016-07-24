@@ -22,7 +22,7 @@
 
 def command(box = nil, cert = nil, priv_key = nil, size = 2048, type = nil, data = nil)
   Vagrant.configure(2) do |config|
-    config.vm.box = box
+    config.vm.box = "bento/centos-6.7"
     config.vm.provider "virtualbox"
 
     # Start the AMI bundle process.
@@ -254,11 +254,11 @@ Choose your EC2 region from the list below:
 
   # Prompt for image disk size.
   while true do
-    print "Enter the image size in megabytes (min 1024 / max 10240): "
+    print "Enter the image size in GiB (min 1 / max 10): "
 
     line = STDIN.gets.chomp.delete("-")
 
-    if line !~ /^[0-9]{3,5}$/ && line >= 1024 && line <= 10240
+    if line !~ /^[1-9]|10$/
       error "The image size entered is not valid."
       next
     end
