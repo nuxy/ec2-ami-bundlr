@@ -17,7 +17,7 @@
 #    Virtualbox 5.x
 #
 #  Usage:
-#    $ vagrant up | halt | ssh | destroy
+#    $ vagrant up | ssh | destroy
 #
 
 def command(box = nil, cert = nil, priv_key = nil, size = 2048, type = nil, data = nil)
