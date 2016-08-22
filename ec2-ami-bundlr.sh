@@ -238,17 +238,60 @@ fi
 
 ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION
 
-INSTANCE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL --virtualization-type $4`
+AMI_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL --virtualization-type $4 | awk '/IMAGE/{print $2}'`
 
 #
 # Create EBS-based image from new instance-store.
 #
 notice "Creating the EBS-based image... This may take a while."
 
-ec2-run-instance $INSTANCE_ID --availability-zone $EC2_REGION
+if [ "$EC2_REGION" = 'us-east-1' ]; then
+    EC2_REGION='us-east-1a'
+fi
 
-VOLUME_ID=`ec2-create-volume --size $DISK_SIZE --availability-zone $EC2_REGION | awk '{print $2}'`
+# Create security group and update ACL permissions
+ec2-create-group ami-bundlr --description 'ami-bundlr temporary'
+
+IP_ADDRESS=`dig +short myip.opendns.com @resolver1.opendns.com.`
+
+ec2-authorize ami-bundlr -p 22 -s $IP_ADDRESS/24
+
+# Launch the machine image.
+INSTANCE_ID=`ec2-run-instances $AMI_ID --availability-zone $EC2_REGION --group ami-bundlr | awk '/INSTANCE/{print $2}'`
+
+sleep 60
+
+# Create the volume.
+DISK_SIZE=$3
+
+VOLUME_ID=`ec2-create-volume --size $DISK_SIZE --availability-zone $EC2_REGION | awk '/VOLUME/{print $2}'`
+
+sleep 60
 
 ec2-attach-volume $VOLUME_ID --instance $INSTANCE_ID --device /dev/sdb
 
+# Remotely access the EC2 instance; rsync OS files to the EBS mount.
+AMI_HOSTNAME=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $4}'`
 
+ssh -tt -o stricthostkeychecking=no root@$AMI_HOSTNAME << EOF
+yum install -y rsync
+
+mkfs.ext4 /dev/xvdf
+tune2fs   /dev/xvdf -i 0
+
+mkdir /mnt/ebs
+
+mount /dev/xvdf /mnt/ebs
+rsync -ax / /mnt/ebs
+umount /mnt/ebs
+exit
+EOF
+
+# Create the snapshot.
+ec2-create-snapshot $VOLUME_ID -d "ami-bundlr"
+
+# Delete temporary security group.
+ec2-delete-group ami-bundlr
+
+# Terminate the instance.
+ec2-terminate-instances $INSTANCE_ID
