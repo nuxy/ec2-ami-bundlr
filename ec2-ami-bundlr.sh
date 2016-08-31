@@ -16,9 +16,17 @@
 #
 #  Notes:
 #   - This script has been tested to work with Linux
-#   - This script must be executed as root
+#   - This script must be executed by a Vagrant provisioner
 #
 
+if [ "$0" != "/tmp/vagrant-shell" ]; then
+    echo "This script must be executed by a Vagrant provisioner"
+    exit 1
+fi
+
+#
+# Global functions.
+#
 notice () {
     echo -e "\033[1m$1\033[0m\n"
     sleep 1
