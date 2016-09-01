@@ -20,7 +20,7 @@
 #
 
 if [ "$0" != "/tmp/vagrant-shell" ]; then
-    echo "This script must be executed by a Vagrant provisioner"
+    echo 'This script must be executed by a Vagrant provisioner'
     exit 1
 fi
 
@@ -39,7 +39,7 @@ AMI_BUNDLR_VARS=~/.aws
 
 source $AMI_BUNDLR_VARS
 
-notice "Starting installation process"
+notice 'Starting installation process'
 
 # Check for an existing session.
 if [ -e "$AMI_BUNDLR_VARS" ] && [ -d "$AMI_BUNDLR_ROOT" ]; then
@@ -62,7 +62,7 @@ mkdir $AMI_BUNDLR_ROOT
 #
 # Install build dependencies.
 #
-notice "Installing build dependencies.."
+notice 'Installing build dependencies..'
 
 yum install -y e2fsprogs java-1.8.0-openjdk net-tools ntp perl ruby unzip
 
@@ -99,7 +99,7 @@ fi
 #
 # Create OS dependencies.
 #
-notice "Creating the filesystem."
+notice 'Creating the filesystem.'
 
 IMAGE_MOUNT_DIR=/mnt/image
 
@@ -207,8 +207,8 @@ EOF
 
 ln -s /boot/grub/grub.conf $IMAGE_MOUNT_DIR/boot/grub/menu.lst
 
-GRUB_KERNEL=`find $IMAGE_MOUNT_DIR/boot -type f -name "vmlinuz*.x86_64" | awk -F / '{print $NF}'`
-GRUB_INITRD=`find $IMAGE_MOUNT_DIR/boot -type f -name "initramfs*.x86_64.img" | awk -F / '{print $NF}'`
+GRUB_KERNEL=`find $IMAGE_MOUNT_DIR/boot -type f -name 'vmlinuz*.x86_64' | awk -F / '{print $NF}'`
+GRUB_INITRD=`find $IMAGE_MOUNT_DIR/boot -type f -name 'initramfs*.x86_64.img' | awk -F / '{print $NF}'`
 
 perl -p -i -e "s/vmlinuz/$GRUB_KERNEL/g"   $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 perl -p -i -e "s/initramfs/$GRUB_INITRD/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
@@ -216,7 +216,7 @@ perl -p -i -e "s/initramfs/$GRUB_INITRD/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 #
 # Create the AMI image.
 #
-notice "Creating the AMI image... This may take a while."
+notice 'Creating the AMI image... This may take a while.'
 
 sleep 60
 
@@ -230,7 +230,7 @@ ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3
 AMI_MANIFEST=$AWS_S3_BUCKET.manifest.xml
 
 if [ ! -f "$BUNDLE_OUTPUT_DIR/$AMI_MANIFEST" ]; then
-    notice "The image bundling process failed. Please try again."
+    notice 'The image bundling process failed. Please try again.'
 
     exit 1
 else
@@ -251,7 +251,7 @@ AMI_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE\-$(date +"%
 #
 # Create EBS-based image from new instance-store.
 #
-notice "Creating the EBS-based image... This may take a while."
+notice 'Creating the EBS-based image... This may take a while.'
 
 if [ "$EC2_REGION" = 'us-east-1' ]; then
     EC2_REGION='us-east-1a'
@@ -295,7 +295,7 @@ exit
 EOF
 
 # Create the snapshot.
-ec2-create-snapshot $VOLUME_ID -d "ami-bundlr"
+ec2-create-snapshot $VOLUME_ID -d 'ami-bundlr'
 
 # Revoke privileges
 ec2-revoke ami-bundlr -p 22 -s $IP_ADDRESS/24
