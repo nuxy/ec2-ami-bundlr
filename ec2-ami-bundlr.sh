@@ -107,7 +107,7 @@ if [ ! -d $IMAGE_MOUNT_DIR ]; then
     mkdir $IMAGE_MOUNT_DIR
 fi
 
-OS_RELEASE=`cat /etc/*-release | head -1 | awk '{print tolower($0)}' | tr ' ' -`
+OS_RELEASE=`cat /etc/*-release | head -1 | awk '{print tolower($0)}' | sed 's/\s(final)$//' | tr ' ' -`
 DISK_IMAGE=$AMI_BUNDLR_ROOT/$OS_RELEASE.img
 
 # Create disk mounted as loopback.
@@ -246,7 +246,7 @@ fi
 
 ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION
 
-AMI_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE --architecture x86_64 --kernel $AKI_KERNEL --virtualization-type $4 | awk '/IMAGE/{print $2}'`
+AMI_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE\-$(date +"%s") --architecture x86_64 --kernel $AKI_KERNEL --virtualization-type $4 | awk '/IMAGE/{print $2}'`
 
 #
 # Create EBS-based image from new instance-store.
@@ -271,7 +271,6 @@ sleep 60
 
 # Create the volume.
 DISK_SIZE=$3
-
 VOLUME_ID=`ec2-create-volume --size $DISK_SIZE --availability-zone $EC2_REGION | awk '/VOLUME/{print $2}'`
 
 sleep 60
@@ -297,6 +296,9 @@ EOF
 
 # Create the snapshot.
 ec2-create-snapshot $VOLUME_ID -d "ami-bundlr"
+
+# Revoke privileges
+ec2-revoke ami-bundlr -p 22 -s $IP_ADDRESS/24
 
 # Delete temporary security group.
 ec2-delete-group ami-bundlr
