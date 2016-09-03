@@ -2,7 +2,7 @@
 # vi: set ft=ruby :
 
 #
-#  Interactive process to create an Amazon EC2 HVM/PV machine image
+#  Interactive process to create an Amazon EC2, EBS mounted, HVM/PV machine image
 #  from a standard Linux installation.
 #
 #  Copyright 2016, Marc S. Brooks (http://mbrooks.info)
@@ -269,9 +269,9 @@ Choose your EC2 region from the list below:
     break
   end
 
-  # Prompt for image virtualization type (hmv/paravirtual).
+  # Prompt for image virtualization type (hvm/paravirtual).
   while true do
-    print "Choose the virtualization type [hmv/pv]? "
+    print "Choose the virtualization type [hvm/pv]? "
 
     case STDIN.gets.chomp
     when "hvm"
