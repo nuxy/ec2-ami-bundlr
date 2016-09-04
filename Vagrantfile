@@ -20,7 +20,7 @@
 #    $ vagrant up | ssh | destroy
 #
 
-def command(box = nil, cert = nil, priv_key = nil, size = 2048, type = nil, data = nil)
+def command(box = nil, cert = nil, priv_key = nil, size = 2048, data = nil)
   Vagrant.configure(2) do |config|
     config.vm.box = "bento/centos-6.7"
     config.vm.provider "virtualbox"
@@ -28,7 +28,7 @@ def command(box = nil, cert = nil, priv_key = nil, size = 2048, type = nil, data
     # Start the AMI bundle process.
     if cert && priv_key && data
       config.vm.provision "shell", inline: data
-      config.vm.provision "shell", path: "ec2-ami-bundlr.sh", args: [cert, priv_key, size, type]
+      config.vm.provision "shell", path: "ec2-ami-bundlr.sh", args: [cert, priv_key, size]
     end
   end
 end
@@ -48,6 +48,7 @@ Welcome to the AMI builder interactive setup. It is assumed that you:
   1. Are running an operating system that supports VirtualBox.
   2. Are NOT already running this script in a VM (the Cloud) environment.
   3. Have an Amazon Web Services account with EC2/S3 root or IAM access.
+  4. Have account info, access credentials, and x.509 certificates ready.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -269,24 +270,6 @@ Choose your EC2 region from the list below:
     break
   end
 
-  # Prompt for image virtualization type (hvm/paravirtual).
-  while true do
-    print "Choose the virtualization type [hvm/pv]? "
-
-    case STDIN.gets.chomp
-    when "hvm"
-      image_type = "hvm"
-    when "pv"
-      image_type = "paravirtual"
-    else
-      error "Not a valid entry."
-      next
-    end
-
-    system "clear"
-    break
-  end
-
   # Prompt for Bento project Vagrant box.
   while true do
     puts "Enter a Bento project Vagrant box (https://atlas.hashicorp.com/bento)"
@@ -304,7 +287,7 @@ Choose your EC2 region from the list below:
     break
   end
 
-  command bento_box, ec2_cert, ec2_private_key, image_size, image_type, <<-EOF
+  command bento_box, ec2_cert, ec2_private_key, image_size, <<-EOF
       cat << 'CONFIG' > ~/.aws
   export AMI_BUNDLR_ROOT=~/ec2-ami-bundlr
 
