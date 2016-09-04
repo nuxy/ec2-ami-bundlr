@@ -258,7 +258,7 @@ if [ "$EC2_REGION" = 'us-east-1' ]; then
 fi
 
 # Create security group and update ACL permissions.
-ec2-create-group ec2-ami-bundlr --description 'EC2 AMI Bundlr group'
+ec2-create-group ec2-ami-bundlr --description "EC2 AMI Bundlr ($OS_RELEASE)"
 
 IP_ADDRESS=`dig +short myip.opendns.com @resolver1.opendns.com.`
 
@@ -304,7 +304,7 @@ umount /mnt/ebs
 EOF
 
 # Create the snapshot of the mounted volume.
-ec2-create-snapshot $VOLUME_ID --description 'EC2 AMI Bundlr - EBS-based AMI'
+ec2-create-snapshot $VOLUME_ID --description "EC2 AMI Bundlr ($OS_RELEASE)"
 
 sleep 60
 
