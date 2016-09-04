@@ -244,7 +244,7 @@ else
     umount $IMAGE_MOUNT_DIR
 fi
 
-ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION
+ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION --request-timeout 300
 
 IMAGE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE\-$(date +%s) --architecture x86_64 --kernel $AKI_KERNEL | awk '/IMAGE/{print $2}'`
 
@@ -296,8 +296,7 @@ tune2fs -L '/' /dev/xvdf -i 0
 mkdir /mnt/ebs
 mount /dev/xvdf /mnt/ebs
 
-rsync -axH /    /mnt/ebs
-#rsync -axH /dev /mnt/ebs
+rsync -axH / /mnt/ebs
 
 touch /mnt/ebs/.autorelabel
 
