@@ -230,7 +230,7 @@ ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3
 AMI_MANIFEST=$AWS_S3_BUCKET.manifest.xml
 
 if [ ! -f "$BUNDLE_OUTPUT_DIR/$AMI_MANIFEST" ]; then
-    notice 'The image bundling process failed. Please try again.'
+    notice 'The image bundling process failed. Exiting...'
 
     exit 1
 else
@@ -244,7 +244,7 @@ else
     umount $IMAGE_MOUNT_DIR
 fi
 
-ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION --request-timeout 300
+ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION --retry 3
 
 IMAGE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE\-$(date +%s) --architecture x86_64 --kernel $AKI_KERNEL | awk '/IMAGE/{print $2}'`
 
@@ -274,9 +274,20 @@ ec2-import-keypair ec2-ami-bundlr --public-key-file $AMI_BUNDLR_ROOT/keys/ssh.ke
 # Launch the instance-store.
 INSTANCE_ID=`ec2-run-instances $IMAGE_ID --availability-zone $EC2_REGION --group ec2-ami-bundlr --key ec2-ami-bundlr | awk '/INSTANCE/{print $2}'`
 
-sleep 180
+while true; do
+    INSTANCE_STATUS=`ec2-describe-instances | grep $INSTANCE_ID | awk '/INSTANCE/{print $4}'`
 
-AMI_HOSTNAME=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $4}'`
+    if [ "$INSTANCE_STATUS" == 'terminated' ]; then
+        notice 'The instance failed to initialize and was terminated. Exiting...'
+        exit 0
+    fi
+
+    if [ "$INSTANCE_STATUS" == 'running' ]; then
+        break;
+    fi
+done
+
+INSTANCE_HOSTNAME=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $4}'`
 
 # Create an empty volume and mount to instance.
 VOLUME_ID=`ec2-create-volume --size $DISK_SIZE --availability-zone $EC2_REGION | awk '/VOLUME/{print $2}'`
@@ -286,7 +297,7 @@ sleep 60
 ec2-attach-volume $VOLUME_ID --instance $INSTANCE_ID --device /dev/sdb
 
 # Remotely access the instance; rsync filesystem to mounted volume.
-sudo -u root -s ssh -T -o userknownhostsfile=/dev/null -o stricthostkeychecking=no -i $AMI_BUNDLR_ROOT/keys/ssh.key root@$AMI_HOSTNAME << EOF
+sudo -u root -s ssh -T -o userknownhostsfile=/dev/null -o stricthostkeychecking=no -i $AMI_BUNDLR_ROOT/keys/ssh.key root@$INSTANCE_HOSTNAME << EOF
 yum install -y rsync
 
 mkfs.ext4 /dev/xvdf
