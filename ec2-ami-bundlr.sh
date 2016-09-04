@@ -24,8 +24,6 @@ if [ "$0" != "/tmp/vagrant-shell" ]; then
     exit 1
 fi
 
-TIMESTAMP=`date +%s`
-
 #
 # Commonly used functions.
 #
@@ -47,7 +45,7 @@ notice 'Starting installation process'
 if [ -e "$AMI_BUNDLR_VARS" ] && [ -d "$AMI_BUNDLR_ROOT" ]; then
 
     # Backup the project directory.
-    outfile="ec2-ami-bundlr.$TIMESTAMP"
+    outfile="ec2-ami-bundlr.$(date +%s)"
 
     notice "Build exists. Backing up files to $outfile"
 
@@ -248,8 +246,7 @@ fi
 
 ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION
 
-AMI_NAME=$OS_RELEASE\-$TIMESTAMP
-IMAGE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $AMI_NAME --architecture x86_64 --kernel $AKI_KERNEL | awk '/IMAGE/{print $2}'`
+IMAGE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE\-$(date +%s) --architecture x86_64 --kernel $AKI_KERNEL | awk '/IMAGE/{print $2}'`
 
 #
 # Create EBS-based image from new instance-store.
@@ -261,7 +258,7 @@ if [ "$EC2_REGION" = 'us-east-1' ]; then
 fi
 
 # Create security group and update ACL permissions.
-ec2-create-group ec2-ami-bundlr --description 'build in process'
+ec2-create-group ec2-ami-bundlr --description 'EC2 AMI Bundlr group'
 
 IP_ADDRESS=`dig +short myip.opendns.com @resolver1.opendns.com.`
 
@@ -274,14 +271,14 @@ chmod 400 $AMI_BUNDLR_ROOT/keys/ssh.key
 
 ec2-import-keypair ec2-ami-bundlr --public-key-file $AMI_BUNDLR_ROOT/keys/ssh.key.pub
 
-# Launch the instance-store image.
+# Launch the instance-store.
 INSTANCE_ID=`ec2-run-instances $IMAGE_ID --availability-zone $EC2_REGION --group ec2-ami-bundlr --key ec2-ami-bundlr | awk '/INSTANCE/{print $2}'`
 
-sleep 60
+sleep 180
 
 AMI_HOSTNAME=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $4}'`
 
-# Create an empty volume and mount to the instance. 
+# Create an empty volume and mount to instance.
 VOLUME_ID=`ec2-create-volume --size $DISK_SIZE --availability-zone $EC2_REGION | awk '/VOLUME/{print $2}'`
 
 sleep 60
@@ -289,29 +286,33 @@ sleep 60
 ec2-attach-volume $VOLUME_ID --instance $INSTANCE_ID --device /dev/sdb
 
 # Remotely access the instance; rsync filesystem to mounted volume.
-ssh -T -t -o userknownhostsfile=/dev/null -o stricthostkeychecking=no -i $AMI_BUNDLR_ROOT/keys/ssh.key root@$AMI_HOSTNAME << EOF
+sudo -u root -s ssh -T -o userknownhostsfile=/dev/null -o stricthostkeychecking=no -i $AMI_BUNDLR_ROOT/keys/ssh.key root@$AMI_HOSTNAME << EOF
 yum install -y rsync
 
 mkfs.ext4 /dev/xvdf
-tune2fs   /dev/xvdf -i 0
+
+tune2fs -L '/' /dev/xvdf -i 0
 
 mkdir /mnt/ebs
-
 mount /dev/xvdf /mnt/ebs
-rsync -ax / /mnt/ebs
-#umount /mnt/ebs
-exit
+
+rsync -axH /    /mnt/ebs
+#rsync -axH /dev /mnt/ebs
+
+touch /mnt/ebs/.autorelabel
+
+umount /mnt/ebs
 EOF
 
 # Create the snapshot of the mounted volume.
-ec2-create-snapshot $VOLUME_ID -d 'ec2-ami-bundlr'
+ec2-create-snapshot $VOLUME_ID --description 'EC2 AMI Bundlr - EBS-based AMI'
 
 sleep 60
 
 # Terminate the instance.
 ec2-terminate-instances $INSTANCE_ID
 
-sleep 30
+sleep 90
 
 # Perform cleanup.
 ec2-delete-group   ec2-ami-bundlr
