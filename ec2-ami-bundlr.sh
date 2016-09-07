@@ -36,13 +36,12 @@ notice () {
 # Start the installation.
 #
 AMI_BUNDLR_VARS=~/.aws
-
 source $AMI_BUNDLR_VARS
 
 notice 'Starting installation process'
 
 # Check for an existing session.
-if [ -e "$AMI_BUNDLR_VARS" ] && [ -d "$AMI_BUNDLR_ROOT" ]; then
+if [ -e $AMI_BUNDLR_VARS ] && [ -d $AMI_BUNDLR_ROOT ]; then
 
     # Backup the project directory.
     outfile="ec2-ami-bundlr.$(date +%s)"
@@ -68,7 +67,7 @@ yum install -y bind-utils e2fsprogs java-1.8.0-openjdk net-tools ntp perl ruby u
 # Synchronize server time.
 ntpdate pool.ntp.org
 
-# Install the AWS AMI/API tools.
+# Install EC2 AMI/API tools.
 mkdir $AWS_TOOLS_DIR
 
 curl --silent -o /tmp/ec2-api-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
@@ -96,7 +95,7 @@ if [ $# -ne 0 ]; then
 fi
 
 #
-# Create OS dependencies.
+# Create filesystem and related dependencies.
 #
 notice 'Creating the filesystem.'
 
@@ -110,7 +109,7 @@ OS_RELEASE=`cat /etc/*-release | head -1 | awk '{print tolower($0)}' | sed 's/\s
 DISK_IMAGE=$AMI_BUNDLR_ROOT/$OS_RELEASE.img
 DISK_SIZE=$3
 
-# Create disk mounted as loopback.
+# Create disk volume; mount as loopback.
 dd if=/dev/zero of=$DISK_IMAGE bs=1G count=$DISK_SIZE
 
 mkfs.ext4 -F -j $DISK_IMAGE
@@ -138,16 +137,16 @@ mount -o bind /dev/shm $IMAGE_MOUNT_DIR/dev/shm
 mount -o bind /proc    $IMAGE_MOUNT_DIR/proc
 mount -o bind /sys     $IMAGE_MOUNT_DIR/sys
 
-# Install the operating system.
+# Install RPM-based Linux distribution.
 yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install @core expect
 
 # Install 3rd-party AMI support scripts.
-SCRIPT_PATH=https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2
+script_path=https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2
 
-curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-get-pubkey   $SCRIPT_PATH/get-pubkey.sh
-curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-set-password $SCRIPT_PATH/set-password.sh
-curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-set-hostname $SCRIPT_PATH/set-hostname.sh
-curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-post-install $SCRIPT_PATH/post-install.sh
+curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-get-pubkey   $script_path/get-pubkey.sh
+curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-set-password $script_path/set-password.sh
+curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-set-hostname $script_path/set-hostname.sh
+curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-post-install $script_path/post-install.sh
 
 chmod 755 $IMAGE_MOUNT_DIR/etc/init.d/ec2-*
 
@@ -159,7 +158,7 @@ chmod 755 $IMAGE_MOUNT_DIR/etc/init.d/ec2-*
 
 touch $IMAGE_MOUNT_DIR/.autorelabel
 
-# Configure the image services.
+# Install and configure server dependencies.
 cat << EOF > $IMAGE_MOUNT_DIR/etc/fstab
 /dev/xvde1  /           ext4         defaults          1    1
 none        /dev/pts    devpts       gid=5,mode=620    0    0
@@ -192,7 +191,7 @@ EOF
 
 /usr/sbin/chroot $IMAGE_MOUNT_DIR mkdir /root/.ssh
 
-# Install the kernel and dependencies.
+# Install and configure the kernel files.
 yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install kernel
 
 cat << EOF > $IMAGE_MOUNT_DIR/boot/grub/grub.conf
@@ -207,29 +206,30 @@ EOF
 
 ln -s /boot/grub/grub.conf $IMAGE_MOUNT_DIR/boot/grub/menu.lst
 
-GRUB_KERNEL=`find $IMAGE_MOUNT_DIR/boot -type f -name 'vmlinuz*.x86_64'       | awk -F / '{print $NF}'`
-GRUB_INITRD=`find $IMAGE_MOUNT_DIR/boot -type f -name 'initramfs*.x86_64.img' | awk -F / '{print $NF}'`
+grub_kernel=`find $IMAGE_MOUNT_DIR/boot -type f -name 'vmlinuz*.x86_64'       | awk -F / '{print $NF}'`
+grub_initrd=`find $IMAGE_MOUNT_DIR/boot -type f -name 'initramfs*.x86_64.img' | awk -F / '{print $NF}'`
 
-perl -p -i -e "s/vmlinuz/$GRUB_KERNEL/g"   $IMAGE_MOUNT_DIR/boot/grub/grub.conf
-perl -p -i -e "s/initramfs/$GRUB_INITRD/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+perl -p -i -e "s/vmlinuz/$grub_kernel/g"   $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+perl -p -i -e "s/initramfs/$grub_initrd/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+
+sync
 
 #
-# Create the AMI image.
+# Bundle, upload, and register the machine image.
 #
 notice 'Creating the AMI image... This may take a while.'
 
-sleep 60
+RELEASE_DATE=`date +%s`
+RELEASE_NAME=ec2-ami-bundlr\-$RELEASE_DATE
 
-# Bundle and upload the AMI to S3
-BUNDLE_OUTPUT_DIR=$AMI_BUNDLR_ROOT/bundle
+OUTPUT_DIR=$AMI_BUNDLR_ROOT/bundle
+mkdir $OUTPUT_DIR
 
-mkdir $BUNDLE_OUTPUT_DIR
-
-ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3_BUCKET --user $AWS_ACCOUNT_NUMBER --image $DISK_IMAGE --destination $BUNDLE_OUTPUT_DIR --arch x86_64
+ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3_BUCKET --user $AWS_ACCOUNT_NUMBER --image $DISK_IMAGE --destination $OUTPUT_DIR --arch x86_64
 
 AMI_MANIFEST=$AWS_S3_BUCKET.manifest.xml
 
-if [ ! -f "$BUNDLE_OUTPUT_DIR/$AMI_MANIFEST" ]; then
+if [ ! -f $OUTPUT_DIR/$AMI_MANIFEST ]; then
     notice 'The image bundling process failed. Exiting...'
 
     exit 1
@@ -244,60 +244,95 @@ else
     umount $IMAGE_MOUNT_DIR
 fi
 
-ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $BUNDLE_OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION --retry 3
+ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION --retry 3
 
-IMAGE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE\-$(date +%s) --architecture x86_64 --kernel $AKI_KERNEL | awk '/IMAGE/{print $2}'`
+# Register the image.
+IMAGE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE\-$RELEASE_DATE --architecture x86_64 --kernel $AKI_KERNEL | awk '/IMAGE/{print $2}'`
 
 #
 # Create EBS-based image from new instance-store.
 #
 notice 'Creating the EBS-based image... This may take a while.'
 
-if [ "$EC2_REGION" = 'us-east-1' ]; then
-    EC2_REGION='us-east-1a'
-fi
+# Create security group and update permissions.
+ec2-create-group $RELEASE_NAME --description "EC2 AMI Bundlr ($OS_RELEASE)"
 
-# Create security group and update ACL permissions.
-ec2-create-group ec2-ami-bundlr --description "EC2 AMI Bundlr ($OS_RELEASE)"
+ip_address=`dig +short myip.opendns.com @resolver1.opendns.com.`
 
-IP_ADDRESS=`dig +short myip.opendns.com @resolver1.opendns.com.`
+ec2-authorize $RELEASE_NAME -p 22 -s $ip_address/24
 
-ec2-authorize ec2-ami-bundlr -p 22 -s $IP_ADDRESS/24
-
-# Create temporary SSH keypair to access new instance.
+# Create temporary SSH keypair to access instance.
 ssh-keygen -b 4096 -t rsa -N '' -f $AMI_BUNDLR_ROOT/keys/ssh.key
 
 chmod 400 $AMI_BUNDLR_ROOT/keys/ssh.key
 
-ec2-import-keypair ec2-ami-bundlr --public-key-file $AMI_BUNDLR_ROOT/keys/ssh.key.pub
+ec2-import-keypair $RELEASE_NAME --public-key-file $AMI_BUNDLR_ROOT/keys/ssh.key.pub
 
-# Launch the instance-store.
-INSTANCE_ID=`ec2-run-instances $IMAGE_ID --availability-zone $EC2_REGION --group ec2-ami-bundlr --key ec2-ami-bundlr | awk '/INSTANCE/{print $2}'`
+# Launch the instance-store image.
+avail_zone=$EC2_REGION
+
+if [ $avail_zone = 'us-east-1' ]; then
+    avail_zone='us-east-1a'
+fi
+
+INSTANCE_ID=`ec2-run-instances $IMAGE_ID --availability-zone $avail_zone --group $RELEASE_NAME --key $RELEASE_NAME | awk '/INSTANCE/{print $2}'`
 
 while true; do
-    INSTANCE_STATUS=`ec2-describe-instances | grep $INSTANCE_ID | awk '/INSTANCE/{print $4}'`
+    api_response=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $6}'`
 
-    if [ "$INSTANCE_STATUS" == 'terminated' ]; then
+    if [ "$api_response" = '0' ]; then
         notice 'The instance failed to initialize and was terminated. Exiting...'
-        exit 0
+
+        exit 1
     fi
 
-    if [ "$INSTANCE_STATUS" == 'running' ]; then
-        break;
+    if [ "$api_response" = 'running' ]; then
+        break
     fi
+
+    sleep 5
 done
 
-INSTANCE_HOSTNAME=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $4}'`
-
 # Create an empty volume and mount to instance.
-VOLUME_ID=`ec2-create-volume --size $DISK_SIZE --availability-zone $EC2_REGION | awk '/VOLUME/{print $2}'`
+VOLUME_ID=`ec2-create-volume --size $DISK_SIZE --availability-zone $avail_zone | awk '/VOLUME/{print $2}'`
 
-sleep 60
+while true; do
+    api_response=`ec2-describe-volumes $VOLUME_ID | awk '/VOLUME/{print $5}'`
+
+    if [ "$api_response" = 'available' ]; then
+        break
+    fi
+
+    sleep 5
+done
 
 ec2-attach-volume $VOLUME_ID --instance $INSTANCE_ID --device /dev/sdb
 
-# Remotely access the instance; rsync filesystem to mounted volume.
-sudo -u root -s ssh -T -o userknownhostsfile=/dev/null -o stricthostkeychecking=no -i $AMI_BUNDLR_ROOT/keys/ssh.key root@$INSTANCE_HOSTNAME << EOF
+while true; do
+    api_response=`ec2-describe-volumes $VOLUME_ID | awk '/ATTACHMENT/{print $5}'`
+
+    if [ "$api_response" = 'attached' ]; then
+        break
+    fi
+
+    sleep 5
+done
+
+# Remotely access the instance using SSH when available.
+ec2_hostname=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $4}'`
+
+while true; do
+    ssh-keyscan $ec2_hostname 2>&1 | grep -v '^$' > /dev/null
+
+    if [ $? -eq 0 ]; then
+        break
+    fi
+
+    sleep 5
+done
+
+# Rsync the filesystem to the mounted volume.
+ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i $AMI_BUNDLR_ROOT/keys/ssh.key root@$ec2_hostname << EOF
 yum install -y rsync
 
 mkfs.ext4 /dev/xvdf
@@ -308,24 +343,39 @@ mkdir /mnt/ebs
 mount /dev/xvdf /mnt/ebs
 
 rsync -axH / /mnt/ebs
-
 touch /mnt/ebs/.autorelabel
 
 umount /mnt/ebs
 EOF
 
 # Create the snapshot of the mounted volume.
-ec2-create-snapshot $VOLUME_ID --description "EC2 AMI Bundlr ($OS_RELEASE)"
+SNAPSHOT_ID=`ec2-create-snapshot $VOLUME_ID --description "EC2 AMI Bundlr ($OS_RELEASE)" | awk '/SNAPSHOT/{print $2}'`
 
-sleep 60
+while true; do
+    api_response=`ec2-describe-snapshots $SNAPSHOT_ID | awk '/SNAPSHOT/{print $4}'`
+
+    if [ "$api_response" = 'completed' ]; then
+        break
+    fi
+
+    sleep 5
+done
 
 # Terminate the instance.
 ec2-terminate-instances $INSTANCE_ID
 
-sleep 90
+while true; do
+    api_response=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $4}'`
+
+    if [ "$api_response" = 'terminated' ]; then
+        break
+    fi
+
+    sleep 5
+done
 
 # Perform cleanup.
-ec2-delete-group   ec2-ami-bundlr
-ec2-delete-keypair ec2-ami-bundlr
+ec2-delete-group   $RELEASE_NAME
+ec2-delete-keypair $RELEASE_NAME
 ec2-delete-volume  $VOLUME_ID
 ec2-deregister     $IMAGE_ID
