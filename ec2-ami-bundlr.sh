@@ -40,21 +40,6 @@ source $AMI_BUNDLR_VARS
 
 notice 'Starting installation process'
 
-# Check for an existing session.
-if [ -e $AMI_BUNDLR_VARS ] && [ -d $AMI_BUNDLR_ROOT ]; then
-
-    # Backup the project directory.
-    outfile="ec2-ami-bundlr.$(date +%s)"
-
-    notice "Build exists. Backing up files to $outfile"
-
-    tar cfz $outfile --add-file $AMI_BUNDLR_VARS --directory $AMI_BUNDLR_ROOT --absolute-names
-
-    # Remove directory.
-    rm -rf $AMI_BUNDLR_ROOT
-fi
-
-# Create new project directory.
 mkdir $AMI_BUNDLR_ROOT
 
 #
