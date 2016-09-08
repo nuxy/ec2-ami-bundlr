@@ -1,5 +1,5 @@
-Interactive process to create an Amazon EC2, EBS mounted, HVM/PV machine image
-from a standard Linux installation.
+Interactive process to create an Amazon EC2 machine image from a
+standard CentOS installation.
 
 Copyright 2016, Marc S. Brooks (https://mbrooks.info)
 
