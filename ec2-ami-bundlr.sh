@@ -194,8 +194,8 @@ ln -s /boot/grub/grub.conf $IMAGE_MOUNT_DIR/boot/grub/menu.lst
 grub_kernel=`find $IMAGE_MOUNT_DIR/boot -type f -name 'vmlinuz*.x86_64'       | awk -F / '{print $NF}'`
 grub_initrd=`find $IMAGE_MOUNT_DIR/boot -type f -name 'initramfs*.x86_64.img' | awk -F / '{print $NF}'`
 
-sed "s/vmlinuz/$grub_kernel/g"   $IMAGE_MOUNT_DIR/boot/grub/grub.conf
-sed "s/initramfs/$grub_initrd/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+sed -i "s/vmlinuz/$grub_kernel/g"   $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+sed -i "s/initramfs/$grub_initrd/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 
 sync
 
