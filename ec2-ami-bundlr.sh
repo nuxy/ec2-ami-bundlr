@@ -47,7 +47,7 @@ mkdir $AMI_BUNDLR_ROOT
 #
 notice 'Installing build dependencies..'
 
-yum install -y bind-utils e2fsprogs java-1.8.0-openjdk net-tools ntp perl ruby unzip
+yum install -y bind-utils e2fsprogs java-1.8.0-openjdk net-tools ntp ruby unzip
 
 # Synchronize server time.
 ntpdate pool.ntp.org
@@ -194,8 +194,8 @@ ln -s /boot/grub/grub.conf $IMAGE_MOUNT_DIR/boot/grub/menu.lst
 grub_kernel=`find $IMAGE_MOUNT_DIR/boot -type f -name 'vmlinuz*.x86_64'       | awk -F / '{print $NF}'`
 grub_initrd=`find $IMAGE_MOUNT_DIR/boot -type f -name 'initramfs*.x86_64.img' | awk -F / '{print $NF}'`
 
-perl -p -i -e "s/vmlinuz/$grub_kernel/g"   $IMAGE_MOUNT_DIR/boot/grub/grub.conf
-perl -p -i -e "s/initramfs/$grub_initrd/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+sed -E "s/vmlinuz/$grub_kernel/g"   $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+sed -E "s/initramfs/$grub_initrd/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 
 sync
 
