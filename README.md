@@ -1,12 +1,10 @@
 # EC2 AMI Bundlr
 
-Create an EC2 instance-store based AMI from a standard Linux installation in a couple easy steps. Supports both paravirtual and hvm virtualization types. Can be run on Apple, Linux, and Windows with minimal dependencies.
-
-*Configure > Bundle > Upload > Register*
+Create an Amazon EC2 machine image from a standard CentOS installation in a couple easy steps. Supports instance-store and paravirtual virtualization types. Can be run on Apple, Linux, and Windows with minimal dependencies.
 
 ## Supported Systems
 
-This package currently supports Linux releases that are not dependent on the _Grub2_ bootloader and _Systemd_ init system.
+This package currently supports Linux releases that are not dependent on the _Grub2_ bootloader and _Systemd_ init system. This will change in the near future.
 
 - [CentOS](https://atlas.hashicorp.com/bento/boxes/centos-6.7)
 

@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-#  ec2-ami-bundlr.sh
-#  Interactive process to create an Amazon EC2, EBS mounted, HVM/PV machine image
-#  from a standard Linux installation.
+#  EC2 AMI Bundlr
+#  Interactive process to create an Amazon EC2 machine image from a
+#  standard CentOS installation.
 #
 #  Copyright 2016, Marc S. Brooks (http://mbrooks.info)
 #  Licensed under the MIT license:
