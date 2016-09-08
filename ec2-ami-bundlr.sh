@@ -307,14 +307,17 @@ done
 ec2_hostname=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $4}'`
 
 while true; do
-    ssh-keyscan $ec2_hostname 2>&1 | grep -v '^$' > /dev/null
+    ssh_ready=`ssh-keyscan $ec2_hostname 2>&1 | grep ssh-rsa | wc -l`
 
-    if [ $? -eq 0 ]; then
+    if [ "$ssh_ready" -gt 0 ]; then
         break
     fi
 
     sleep 5
 done
+
+echo -n ">>>>> Next"
+sleep 60
 
 # Rsync the filesystem to the mounted volume.
 ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i $AMI_BUNDLR_ROOT/keys/ssh.key root@$ec2_hostname << EOF
