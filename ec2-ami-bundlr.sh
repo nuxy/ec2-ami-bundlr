@@ -33,28 +33,24 @@ notice () {
 }
 
 #
-# Start the installation.
+# Set-up the build directory and import configuration variables.
 #
-AMI_BUNDLR_VARS=~/.aws
-source $AMI_BUNDLR_VARS
-
 notice 'Starting installation process'
 
+source ~/.aws
+
 mkdir $AMI_BUNDLR_ROOT
+mkdir $AWS_TOOLS_DIR
+mkdir $AWS_KEYS_DIR
 
 #
 # Install build dependencies.
 #
-notice 'Installing build dependencies..'
+notice 'Installing build dependencies'
 
 yum install -y bind-utils e2fsprogs java-1.8.0-openjdk ntp ruby unzip
 
-# Synchronize server time.
-ntpdate pool.ntp.org
-
 # Install EC2 AMI/API tools.
-mkdir $AWS_TOOLS_DIR
-
 curl --silent -o /tmp/ec2-api-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-api-tools.zip
 curl --silent -o /tmp/ec2-ami-tools.zip http://s3.amazonaws.com/ec2-downloads/ec2-ami-tools.zip
 
@@ -67,31 +63,27 @@ cp -rf /tmp/ec2-ami-tools-*/* $AWS_TOOLS_DIR
 rm -rf /tmp/ec2-*
 
 #
-# Set-up signing certificates.
+# Set-up API request signing certificates.
 #
 notice "Writing x.509 certificates to $AMI_BUNDLR_ROOT/keys"
 
-mkdir $AWS_KEYS_DIR
-
-# Write X509 keys from STDIN
-if [ $# -ne 0 ]; then
-    echo -e "$1" > $AWS_KEYS_DIR/cert.pem
-    echo -e "$2" > $AWS_KEYS_DIR/pk.pem
-fi
+# Get keypairs from STDIN
+echo -e "$1" > $AWS_KEYS_DIR/cert.pem
+echo -e "$2" > $AWS_KEYS_DIR/pk.pem
 
 #
-# Create filesystem and related dependencies.
+# Install operating system files on a mounted volume.
 #
-notice 'Creating the filesystem.'
+notice 'Creating the filesystem and related dependencies'
 
 IMAGE_MOUNT_DIR=/mnt/image
 
-if [ ! -d $IMAGE_MOUNT_DIR ]; then
-    mkdir $IMAGE_MOUNT_DIR
-fi
+mkdir $IMAGE_MOUNT_DIR
 
 OS_RELEASE=`cat /etc/*-release | head -1 | awk '{print tolower($0)}' | sed 's/\s(final)$//' | tr ' ' -`
 DISK_IMAGE=$AMI_BUNDLR_ROOT/$OS_RELEASE.img
+
+# Get value from STDIN
 DISK_SIZE=$3
 
 # Create disk volume; mount as loopback.
@@ -200,9 +192,12 @@ sed -i "s/initramfs/$grub_initrd/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 sync
 
 #
-# Bundle, upload, and register the machine image.
+# Bundle, Upload, and Register the AMI
 #
-notice 'Creating the AMI image... This may take a while.'
+notice 'Creating the machine image. This may take a while.'
+
+# Synchronize server time.
+ntpdate pool.ntp.org
 
 RELEASE_DATE=`date +%s`
 RELEASE_NAME=ec2-ami-bundlr\-$RELEASE_DATE
@@ -216,44 +211,33 @@ AMI_MANIFEST=$AWS_S3_BUCKET.manifest.xml
 
 if [ ! -f $OUTPUT_DIR/$AMI_MANIFEST ]; then
     notice 'The image bundling process failed. Exiting...'
-
     exit 1
-else
-
-    # Perform device cleanup
-    umount -t /dev/loop0 $IMAGE_MOUNT_DIR/sys
-    umount -t /dev/loop0 $IMAGE_MOUNT_DIR/proc
-    umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev/shm
-    umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev/pts
-    umount -t /dev/loop0 $IMAGE_MOUNT_DIR/dev
-    umount $IMAGE_MOUNT_DIR
 fi
 
 ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bucket $AWS_S3_BUCKET --manifest $OUTPUT_DIR/$AMI_MANIFEST --region=$EC2_REGION --retry 3
 
-# Register the image.
 IMAGE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE\-$RELEASE_DATE --architecture x86_64 --kernel $AKI_KERNEL | awk '/IMAGE/{print $2}'`
 
 #
-# Create EBS-based image from new instance-store.
+# Create EBS-based image from running instance-store.
 #
-notice 'Creating the EBS-based image... This may take a while.'
+notice 'Creating the EBS-based image. This may take a while.'
 
-# Create security group and update permissions.
+# Create security group and restrict SSH access by IP
 ec2-create-group $RELEASE_NAME --description "EC2 AMI Bundlr ($OS_RELEASE)"
 
 ip_address=`dig +short myip.opendns.com @resolver1.opendns.com.`
 
 ec2-authorize $RELEASE_NAME -p 22 -s $ip_address/24
 
-# Create temporary SSH keypair to access instance.
+# Create SSH keypair for accessing the instance.
 ssh-keygen -b 4096 -t rsa -N '' -f $AMI_BUNDLR_ROOT/keys/ssh.key
 
 chmod 400 $AMI_BUNDLR_ROOT/keys/ssh.key
 
 ec2-import-keypair $RELEASE_NAME --public-key-file $AMI_BUNDLR_ROOT/keys/ssh.key.pub
 
-# Launch the instance-store image.
+# Launch the instance-store.
 avail_zone=$EC2_REGION
 
 if [ $avail_zone = 'us-east-1' ]; then
@@ -267,7 +251,6 @@ while true; do
 
     if [ "$api_response" = '0' ]; then
         notice 'The instance failed to initialize and was terminated. Exiting...'
-
         exit 1
     fi
 
@@ -315,9 +298,6 @@ while true; do
 
     sleep 5
 done
-
-echo -n ">>>>> Next"
-sleep 60
 
 # Rsync the filesystem to the mounted volume.
 ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i $AMI_BUNDLR_ROOT/keys/ssh.key root@$ec2_hostname << EOF
