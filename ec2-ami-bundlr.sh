@@ -25,18 +25,8 @@ if [ "$0" != "/tmp/vagrant-shell" ]; then
 fi
 
 #
-# Commonly used functions.
-#
-notice () {
-    echo -e "\033[1m$1\033[0m\n"
-    sleep 1
-}
-
-#
 # Set-up the build directory and import configuration variables.
 #
-notice 'Starting installation process'
-
 source ~/.aws
 
 mkdir $AMI_BUNDLR_ROOT
@@ -46,8 +36,6 @@ mkdir $AWS_KEYS_DIR
 #
 # Install build dependencies.
 #
-notice 'Installing build dependencies'
-
 yum install -y bind-utils e2fsprogs java-1.8.0-openjdk ntp ruby unzip
 
 # Install EC2 AMI/API tools.
@@ -63,19 +51,14 @@ cp -rf /tmp/ec2-ami-tools-*/* $AWS_TOOLS_DIR
 rm -rf /tmp/ec2-*
 
 #
-# Set-up API request signing certificates.
+# Write x.509 certificates from STDIN to key directory.
 #
-notice "Writing x.509 certificates to $AMI_BUNDLR_ROOT/keys"
-
-# Get keypairs from STDIN
 echo -e "$1" > $AWS_KEYS_DIR/cert.pem
 echo -e "$2" > $AWS_KEYS_DIR/pk.pem
 
 #
 # Install operating system files on a mounted volume.
 #
-notice 'Creating the filesystem and related dependencies'
-
 IMAGE_MOUNT_DIR=/mnt/image
 
 mkdir $IMAGE_MOUNT_DIR
@@ -192,11 +175,8 @@ sed -i "s/initramfs/$grub_initrd/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
 sync
 
 #
-# Bundle, Upload, and Register the AMI
+# Bundle the machine image, Upload the bundle, and Register the AMI
 #
-notice 'Creating the machine image. This may take a while.'
-
-# Synchronize server time.
 ntpdate pool.ntp.org
 
 RELEASE_DATE=`date +%s`
@@ -210,7 +190,7 @@ ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3
 AMI_MANIFEST=$AWS_S3_BUCKET.manifest.xml
 
 if [ ! -f $OUTPUT_DIR/$AMI_MANIFEST ]; then
-    notice 'The image bundling process failed. Exiting...'
+    echo 'The image bundling process failed. Exiting...'
     exit 1
 fi
 
@@ -221,12 +201,10 @@ IMAGE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE\-$RELEASE
 #
 # Create EBS-based image from running instance-store.
 #
-notice 'Creating the EBS-based image. This may take a while.'
+ip_address=`dig +short myip.opendns.com @resolver1.opendns.com.`
 
 # Create security group and restrict SSH access by IP
 ec2-create-group $RELEASE_NAME --description "EC2 AMI Bundlr ($OS_RELEASE)"
-
-ip_address=`dig +short myip.opendns.com @resolver1.opendns.com.`
 
 ec2-authorize $RELEASE_NAME -p 22 -s $ip_address/24
 
@@ -250,7 +228,7 @@ while true; do
     api_response=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $6}'`
 
     if [ "$api_response" = '0' ]; then
-        notice 'The instance failed to initialize and was terminated. Exiting...'
+        echo 'The instance failed to initialize and was terminated. Exiting...'
         exit 1
     fi
 
@@ -299,12 +277,13 @@ while true; do
     sleep 5
 done
 
+sleep 30
+
 # Rsync the filesystem to the mounted volume.
 ssh -T -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i $AMI_BUNDLR_ROOT/keys/ssh.key root@$ec2_hostname << EOF
 yum install -y rsync
 
 mkfs.ext4 /dev/xvdf
-
 tune2fs -L '/' /dev/xvdf -i 0
 
 mkdir /mnt/ebs
