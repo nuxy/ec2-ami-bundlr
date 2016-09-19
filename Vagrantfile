@@ -20,10 +20,9 @@
 #    $ vagrant up | ssh | destroy
 #
 
-def command(box = nil, cert = nil, priv_key = nil, size = 2048, data = nil)
+def command(box = nil, cert = nil, priv_key = nil, size = 0, data = nil)
   Vagrant.configure(2) do |config|
     config.vm.box = "bento/centos-6.7"
-    config.vm.provider "virtualbox"
 
     # Start the AMI bundle process.
     if cert && priv_key && data
@@ -264,7 +263,7 @@ Choose your EC2 region from the list below:
       next
     end
 
-    image_size = line
+    image_size = line.to_i * 1024
 
     system "clear"
     break

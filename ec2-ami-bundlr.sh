@@ -70,7 +70,7 @@ DISK_IMAGE=$AMI_BUNDLR_ROOT/$OS_RELEASE.img
 DISK_SIZE=$3
 
 # Create disk volume; mount as loopback.
-dd if=/dev/zero of=$DISK_IMAGE bs=1G count=$DISK_SIZE
+dd if=/dev/zero of=$DISK_IMAGE bs=1M count=$DISK_SIZE
 
 mkfs.ext4 -F -j $DISK_IMAGE
 
@@ -166,13 +166,15 @@ EOF
 
 ln -s /boot/grub/grub.conf $IMAGE_MOUNT_DIR/boot/grub/menu.lst
 
-grub_kernel=`find $IMAGE_MOUNT_DIR/boot -type f -name 'vmlinuz*.x86_64'       | awk -F / '{print $NF}'`
 grub_initrd=`find $IMAGE_MOUNT_DIR/boot -type f -name 'initramfs*.x86_64.img' | awk -F / '{print $NF}'`
+grub_kernel=`find $IMAGE_MOUNT_DIR/boot -type f -name 'vmlinuz*.x86_64'       | awk -F / '{print $NF}'`
+grub_config=$IMAGE_MOUNT_DIR/boot/grub/grub.conf
 
-sed -i "s/vmlinuz/$grub_kernel/g"   $IMAGE_MOUNT_DIR/boot/grub/grub.conf
-sed -i "s/initramfs/$grub_initrd/g" $IMAGE_MOUNT_DIR/boot/grub/grub.conf
+sed -i "s/initramfs/$grub_initrd/g" $grub_config
+sed -i "s/vmlinuz/$grub_kernel/g"   $grub_config
 
 sync
+exit
 
 #
 # Bundle the machine image, Upload the bundle, and Register the AMI
@@ -190,7 +192,7 @@ ec2-bundle-image --cert $EC2_CERT --privatekey $EC2_PRIVATE_KEY --prefix $AWS_S3
 AMI_MANIFEST=$AWS_S3_BUCKET.manifest.xml
 
 if [ ! -f $OUTPUT_DIR/$AMI_MANIFEST ]; then
-    echo 'The image bundling process failed. Exiting...'
+    echo 'The volume bundling process failed. Exiting...'
     exit 1
 fi
 
@@ -198,31 +200,33 @@ ec2-upload-bundle --access-key $AWS_ACCESS_KEY --secret-key $AWS_SECRET_KEY --bu
 
 IMAGE_ID=`ec2-register $AWS_S3_BUCKET/$AMI_MANIFEST --name $OS_RELEASE\-$RELEASE_DATE --architecture x86_64 --kernel $AKI_KERNEL | awk '/IMAGE/{print $2}'`
 
-#
-# Create EBS-based image from running instance-store.
-#
-ip_address=`dig +short myip.opendns.com @resolver1.opendns.com.`
-
-# Create security group and restrict SSH access by IP
-ec2-create-group $RELEASE_NAME --description "EC2 AMI Bundlr ($OS_RELEASE)"
-
-ec2-authorize $RELEASE_NAME -p 22 -s $ip_address/24
-
-# Create SSH keypair for accessing the instance.
-ssh-keygen -b 4096 -t rsa -N '' -f $AMI_BUNDLR_ROOT/keys/ssh.key
-
-chmod 400 $AMI_BUNDLR_ROOT/keys/ssh.key
-
-ec2-import-keypair $RELEASE_NAME --public-key-file $AMI_BUNDLR_ROOT/keys/ssh.key.pub
-
-# Launch the instance-store.
 avail_zone=$EC2_REGION
 
 if [ $avail_zone = 'us-east-1' ]; then
     avail_zone='us-east-1a'
 fi
 
-INSTANCE_ID=`ec2-run-instances $IMAGE_ID --availability-zone $avail_zone --group $RELEASE_NAME --key $RELEASE_NAME | awk '/INSTANCE/{print $2}'`
+#
+# Set-up AWS security group and remote access.
+#
+ip_address=`dig +short myip.opendns.com @resolver1.opendns.com.`
+
+# Restrict SSH access by external IP address.
+ec2-create-group $RELEASE_NAME --description "EC2 AMI Bundlr ($OS_RELEASE)"
+
+ec2-authorize $RELEASE_NAME -p 22 -s $ip_address/24
+
+# Create SSH keypair to access the instance.
+ssh-keygen -b 4096 -t rsa -N '' -f $AMI_BUNDLR_ROOT/keys/ssh.key
+
+chmod 400 $AMI_BUNDLR_ROOT/keys/ssh.key
+
+ec2-import-keypair $RELEASE_NAME --public-key-file $AMI_BUNDLR_ROOT/keys/ssh.key.pub
+
+#
+# Create EBS-based image from running instance-store.
+#
+INSTANCE_ID=`ec2-run-instances $IMAGE_ID --availability-zone $avail_size --group $RELEASE_NAME --key $RELEASE_NAME | awk '/INSTANCE/{print $2}'`
 
 while true; do
     api_response=`ec2-describe-instances $INSTANCE_ID | awk '/INSTANCE/{print $6}'`
@@ -240,7 +244,7 @@ while true; do
 done
 
 # Create an empty volume and mount to instance.
-VOLUME_ID=`ec2-create-volume --size $DISK_SIZE --availability-zone $avail_zone | awk '/VOLUME/{print $2}'`
+VOLUME_ID=`ec2-create-volume --size $(expr $DISK_SIZE / 1024) --availability-zone $avail_zone | awk '/VOLUME/{print $2}'`
 
 while true; do
     api_response=`ec2-describe-volumes $VOLUME_ID | awk '/VOLUME/{print $5}'`
