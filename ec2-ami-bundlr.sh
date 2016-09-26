@@ -101,7 +101,7 @@ mount -o bind /sys     $IMAGE_MOUNT_DIR/sys
 yum --installroot=$IMAGE_MOUNT_DIR --releasever 6 -y install @core expect
 
 # Install 3rd-party AMI support scripts.
-script_path=https://raw.githubusercontent.com/nuxy/linux-sh-archive/master/ec2
+script_path=https://raw.githubusercontent.com/nuxy/shell-script-archive/master/linux/ec2
 
 curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-get-pubkey   $script_path/get-pubkey.sh
 curl --silent -o $IMAGE_MOUNT_DIR/etc/init.d/ec2-set-password $script_path/set-password.sh
